@@ -17,13 +17,13 @@ jobs:
         - name: Run script
           env:
             ZOTERO_ID: 13765527
-            ZOTERO_KEY: "rjC5fXUmbhqV2WniisbL2GDx"
+            ZOTERO_KEY: ${{ secrets.ZOTERO_KEY }}
             ARXIV_QUERY: "cat:cs.AI OR cat:cs.CV OR cat:cs.LG OR cat:cs.CL"
             SMTP_SERVER: "smtp.qq.com"
             SMTP_PORT: 465
             SENDER: "1719937539@qq.com"
             RECEIVER: "heu_handong@163.com"
-            SENDER_PASSWORD: "hheviqbxmfudcbhe"
+            SENDER_PASSWORD: ${{ secrets.SENDER_PASSWORD }}
             MAX_PAPER_NUM: 50
           run: |
             uv run main.py --debug
