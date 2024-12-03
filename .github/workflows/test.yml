@@ -16,7 +16,7 @@ jobs:
         
         - name: Run script
           env:
-            ZOTERO_ID: ${{ OceanCurrent }}
+            ZOTERO_ID: ${{ 13765527 }}
             ZOTERO_KEY: ${{ rjC5fXUmbhqV2WniisbL2GDx }}
             ARXIV_QUERY: ${{ cat:cs.AI OR cat:cs.CV OR cat:cs.LG OR cat:cs.CL }}
             SMTP_SERVER: ${{ smtp.qq.com }}
