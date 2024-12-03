@@ -18,14 +18,14 @@ jobs:
         
         - name: Run script
           env:
-            ZOTERO_ID: ${{ secrets.ZOTERO_ID }}
-            ZOTERO_KEY: ${{ secrets.ZOTERO_KEY }}
-            ARXIV_QUERY: ${{ secrets.ARXIV_QUERY }}
-            SMTP_SERVER: ${{ secrets.SMTP_SERVER }}
-            SMTP_PORT: ${{ secrets.SMTP_PORT }}
-            SENDER: ${{ secrets.SENDER }}
-            RECEIVER: ${{ secrets.RECEIVER }}
-            SENDER_PASSWORD: ${{ secrets.SENDER_PASSWORD }}
-            MAX_PAPER_NUM: ${{ secrets.MAX_PAPER_NUM }}
+            ZOTERO_ID: ${{OceanCurrent}}
+            ZOTERO_KEY: ${{rjC5fXUmbhqV2WniisbL2GDx}}
+            ARXIV_QUERY: ${{cat:cs.AI OR cat:cs.CV OR cat:cs.LG OR cat:cs.CL}}
+            SMTP_SERVER: ${{smtp.qq.com}}
+            SMTP_PORT: ${{456}}
+            SENDER: ${{1719937539@qq.com}}
+            RECEIVER: ${{heu_handong@163.com}}
+            SENDER_PASSWORD: ${{hheviqbxmfudcbhe}}
+            MAX_PAPER_NUM: ${{50}}
           run: |
             uv run main.py
