@@ -144,6 +144,10 @@ if __name__ == '__main__':
     if len(papers) == 0:
         logger.info("No new papers found. Yesterday maybe a holiday and no one submit their work :). If this is not the case, please check the ARXIV_QUERY.")
         logger.info("No email will be sent. Enjoy a relaxing day!")
+        html = render_email(papers)
+        logger.info("Sending email...")
+        send_email(args.sender, args.receiver, args.password, args.smtp_server, args.smtp_port, html)
+        logger.success("Email sent successfully! If you don't receive the email, please check the configuration and the junk box.")
         exit(0)
     logger.info("Reranking papers...")
     papers = rerank_paper(papers, corpus)
@@ -165,3 +169,4 @@ if __name__ == '__main__':
     logger.info("Sending email...")
     send_email(args.sender, args.receiver, args.password, args.smtp_server, args.smtp_port, html)
     logger.success("Email sent successfully! If you don't receive the email, please check the configuration and the junk box.")
+
