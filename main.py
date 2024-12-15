@@ -49,6 +49,19 @@ def filter_corpus(corpus:list[dict], pattern:str) -> list[dict]:
     os.remove(filename)
     return new_corpus
 
+def select_corpus(corpus:list[dict], tag: str) -> list[dict]:
+    _,filename = mkstemp()
+    with open(filename,'w') as file:
+        file.write(tag)
+    matcher = parse_gitignore(filename,base_dir='./')
+    new_corpus = []
+    for c in corpus:
+        match_results = [matcher(p) for p in c['paths']]
+        if any(match_results):
+            new_corpus.append(c)
+    os.remove(filename)
+    return new_corpus
+
 def get_paper_code_url(paper:arxiv.Result) -> str:
     retry_num = 5
     while retry_num > 0:
@@ -225,8 +238,8 @@ if __name__ == '__main__':
     parser = argparse.ArgumentParser(description='Recommender system for academic papers')
     parser.add_argument('--zotero_id', type=str, help='Zotero user ID',default=get_env('ZOTERO_ID'))
     parser.add_argument('--zotero_key', type=str, help='Zotero API key',default=get_env('ZOTERO_KEY'))
-    parser.add_argument('--zotero_ignore',type=str,help='Zotero collection to ignore, using gitignore-style pattern.',default=get_env('ZOTERO_IGNORE'))
     parser.add_argument('--zotero_tag', type=str, help='Zotero Article Tag',default=os.environ.get('ZOTERO_TAG'))
+    parser.add_argument('--zotero_ignore',type=str,help='Zotero collection to ignore, using gitignore-style pattern.',default=get_env('ZOTERO_IGNORE'))
     parser.add_argument('--max_paper_num', type=int, help='Maximum number of papers to recommend',default=get_env('MAX_PAPER_NUM',100))
     parser.add_argument('--arxiv_query', type=str, help='Arxiv search query',default=get_env('ARXIV_QUERY'))
     parser.add_argument('--smtp_server', type=str, help='SMTP server',default=get_env('SMTP_SERVER'))
@@ -272,12 +285,17 @@ if __name__ == '__main__':
     today = datetime.datetime.now(tz=datetime.timezone.utc).replace(hour=0, minute=0, second=0, microsecond=0)
     yesterday = today - datetime.timedelta(days=1)
     logger.info("Retrieving Zotero corpus...")
-    corpus = get_zotero_corpus(args.zotero_id, args.zotero_key, args.zotero_tag)
+    corpus = get_zotero_corpus(args.zotero_id, args.zotero_key)
     logger.info(f"Retrieved {len(corpus)} papers from Zotero.")
     if args.zotero_ignore:
         logger.info(f"Ignoring papers in:\n {args.zotero_ignore}...")
         corpus = filter_corpus(corpus, args.zotero_ignore)
         logger.info(f"Remaining {len(corpus)} papers after filtering.")
+    if args.zotero_tag:
+        logger.info(f"Only papers in collection {args.zotero_tag} are used for reranking.")
+        corpus = select_corpus(corpus, args.zotero_tag)
+        logger.info(f"Remaining {len(corpus)} papers after selecting.")
+        
     logger.info("Retrieving Arxiv papers...")
     papers = get_arxiv_paper(args.arxiv_query, yesterday, today, args.debug)
     if len(papers) == 0:
