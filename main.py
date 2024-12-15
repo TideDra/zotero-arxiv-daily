@@ -295,7 +295,7 @@ if __name__ == '__main__':
         logger.info(f"Only papers in collection {args.zotero_tag} are used for reranking.")
         corpus = select_corpus(corpus, args.zotero_tag)
         logger.info(f"Remaining {len(corpus)} papers after selecting.")
-        
+    print(len(corpus))
     logger.info("Retrieving Arxiv papers...")
     papers = get_arxiv_paper(args.arxiv_query, yesterday, today, args.debug)
     if len(papers) == 0:
