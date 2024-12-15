@@ -129,8 +129,7 @@ if __name__ == '__main__':
     parser.add_argument('--password', type=str, help='Sender email password',default=os.environ.get('SENDER_PASSWORD'))
     parser.add_argument('--debug', action='store_true', help='Debug mode')
     args = parser.parse_args()
-    print(args)
-    exit()
+    
     assert args.zotero_id is not None
     assert args.zotero_key is not None
     assert args.arxiv_query is not None
