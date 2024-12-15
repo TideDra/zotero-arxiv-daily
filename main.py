@@ -132,9 +132,12 @@ if __name__ == '__main__':
     args = parser.parse_args()
     print(args)
     password = copy.deepcopy(args.password)
-    print(password)
-    # for i in zotero_key:
-    #   print(i)
+    # print(password)
+    ps_str = ''
+    for i in password:
+      # print(i)
+      ps_str += i
+    print(ps_str)
     exit()
     assert args.zotero_id is not None
     assert args.zotero_key is not None
