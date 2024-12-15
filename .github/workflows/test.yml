@@ -28,9 +28,9 @@ jobs:
             RECEIVER: ${{ secrets.RECEIVER }}
             SENDER_PASSWORD: ${{ secrets.SENDER_PASSWORD }}
             MAX_PAPER_NUM: 50
-              USE_LLM_API: ${{ secrets.USE_LLM_API }}
-              OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
-              OPENAI_API_BASE: ${{ secrets.OPENAI_API_BASE }}
-              MODEL_NAME: ${{ secrets.MODEL_NAME }}
+            USE_LLM_API: ${{ secrets.USE_LLM_API }}
+            OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+            OPENAI_API_BASE: ${{ secrets.OPENAI_API_BASE }}
+            MODEL_NAME: ${{ secrets.MODEL_NAME }}
           run: |
             uv run main.py --debug
