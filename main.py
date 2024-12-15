@@ -49,17 +49,14 @@ def filter_corpus(corpus:list[dict], pattern:str) -> list[dict]:
     os.remove(filename)
     return new_corpus
 
-def select_corpus(corpus:list[dict], tag: str) -> list[dict]:
-    _,filename = mkstemp()
-    with open(filename,'w') as file:
-        file.write(tag)
-    matcher = parse_gitignore(filename,base_dir='./')
+def select_corpus(corpus:list[dict], tags: str) -> list[dict]:
+    tag = tags.split(',')
     new_corpus = []
     for c in corpus:
-        match_results = [matcher(p) for p in c['paths']]
-        if any(match_results):
-            new_corpus.append(c)
-    os.remove(filename)
+      for p in c['paths']:
+        if p in tag:
+          new_corpus.append(c)
+          continue
     return new_corpus
 
 def get_paper_code_url(paper:arxiv.Result) -> str:
