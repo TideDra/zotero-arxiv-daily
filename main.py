@@ -1,6 +1,7 @@
 import arxiv
 import argparse
 import os
+import copy
 from pyzotero import zotero
 from recommender import rerank_paper
 from construct_email import render_email
