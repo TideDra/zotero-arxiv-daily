@@ -4,9 +4,9 @@ __pycache__/
 build/
 dist/
 wheels/
+.vscode/
 *.egg-info
 
 # Virtual environments
 .venv
-
 test.ipynb
