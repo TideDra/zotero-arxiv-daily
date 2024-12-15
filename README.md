@@ -36,6 +36,8 @@
 - Links of PDF and code implementation (if any) presented in the e-mail.
 - List of papers sorted by relevance with your recent research interest.
 - Fast deployment via fork this repo and set environment variables in the Github Action Page.
+- Support LLM API for generating TL;DR of papers.
+- Ignore unwanted Zotero papers using gitignore-style pattern.
 
 ## 📷 Screenshot
 ![screenshot](./assets/screenshot.png)
@@ -45,22 +47,33 @@
 1. Fork (and star😘) this repo.
 ![fork](./assets/fork.png)
 
-2. Set Github Action environment variables (repository secrets).
+2. Set Github Action environment variables.
 ![secrets](./assets/secrets.png)
 
-Here are all the variables you need to set:
+Below are all the secrets you need to set. They are invisible to anyone including you once they are set, for security.
 
-| Key | Type | Description | Example |
-| :--- | :---  | :---  | :--- |
-| ZOTERO_ID |  str  | User ID of your Zotero account. Get your ID from [here](https://www.zotero.org/settings/security). | 12345678  |
-| ZOTERO_KEY |  str  | An Zotero API key with read access. Get a key from [here](https://www.zotero.org/settings/security).  | AB5tZ877P2j7Sm2Mragq041H   |
-| ARXIV_QUERY | str  | The search query for retrieving arxiv papers. Refer to the [official document](https://info.arxiv.org/help/api/user-manual.html#query_details) for details. The example queries papers about AI, CV, NLP, ML. Find the abbr of your research area from [here](https://arxiv.org/category_taxonomy).  | cat:cs.AI OR cat:cs.CV OR cat:cs.LG OR cat:cs.CL |
-| SMTP_SERVER | str | The SMTP server that sends the email. I recommend to utilize a seldom-used email for this. Ask your email provider (Gmail, QQ, Outlook, ...) for its SMTP server| smtp.qq.com |
-| SMTP_PORT | int | The port of SMTP server. | 25 **QQ should use port 465. An error occurs for the port 587**|
-| SENDER | str | The email account of the SMTP server that sends you email. | abc@qq.com |
-| SENDER_PASSWORD | str | The password of the sender account. Note that it's not necessarily the password for logging in the e-mail client, but the authentication code for SMTP service. Ask your email provider for this.   | abcdefghijklmn |
-| RECEIVER | str | The e-mail address that receives the paper list. | abc@outlook.com |
-| MAX_PAPER_NUM | int | The maximum number of the papers presented in the email. This value directly affects the execution time of this workflow, because it takes about 70s to generate TL;DR for one paper. `-1` means to present all the papers retrieved. | 50 |
+| Key | Required | Type |Description | Example |
+| :--- | :---: | :---  | :---  | :--- |
+| ZOTERO_ID | ✅ | str  | User ID of your Zotero account. Get your ID from [here](https://www.zotero.org/settings/security). | 12345678  |
+| ZOTERO_KEY | ✅ | str  | An Zotero API key with read access. Get a key from [here](https://www.zotero.org/settings/security).  | AB5tZ877P2j7Sm2Mragq041H   |
+| ARXIV_QUERY | ✅ | str  | The search query for retrieving arxiv papers. Refer to the [official document](https://info.arxiv.org/help/api/user-manual.html#query_details) for details. The example queries papers about AI, CV, NLP, ML. Find the abbr of your research area from [here](https://arxiv.org/category_taxonomy).  | cat:cs.AI OR cat:cs.CV OR cat:cs.LG OR cat:cs.CL |
+| SMTP_SERVER | ✅ | str | The SMTP server that sends the email. I recommend to utilize a seldom-used email for this. Ask your email provider (Gmail, QQ, Outlook, ...) for its SMTP server| smtp.qq.com |
+| SMTP_PORT | ✅ | int | The port of SMTP server. | 465 |
+| SENDER | ✅ | str | The email account of the SMTP server that sends you email. | abc@qq.com |
+| SENDER_PASSWORD | ✅ | str | The password of the sender account. Note that it's not necessarily the password for logging in the e-mail client, but the authentication code for SMTP service. Ask your email provider for this.   | abcdefghijklmn |
+| RECEIVER | ✅ | str | The e-mail address that receives the paper list. | abc@outlook.com |
+| MAX_PAPER_NUM | | int | The maximum number of the papers presented in the email. This value directly affects the execution time of this workflow, because it takes about 70s to generate TL;DR for one paper. `-1` means to present all the papers retrieved. | 50 |
+| USE_LLM_API | | bool | Whether to use the LLM API in the cloud or to use local LLM. If set to `1`, the API is used. Else if set to `0`, the workflow will download and deploy an open-source LLM. Default to `0`. | 0 |
+| OPENAI_API_KEY | | str | API Key when using the API to access LLMs. You can get FREE API for using advanced open source LLMs in [SiliconFlow](https://cloud.siliconflow.cn/i/b3XhBRAm). | sk-xxx |
+| OPENAI_API_BASE | | str | API URL when using the API to access LLMs. If not filled in, the default is the OpenAI URL. | https://api.siliconflow.cn/v1 |
+| MODEL_NAME | | str | Model name when using the API to access LLMs. If not filled in, the default is gpt-4o. Qwen/Qwen2.5-7B-Instruct is recommended when using [SiliconFlow](https://cloud.siliconflow.cn/i/b3XhBRAm). | Qwen/Qwen2.5-7B-Instruct |
+
+There are also some public variables (Repository Variables) you can set, which are easy to edit.
+![vars](./assets/repo_var.png)
+
+| Key | Required | Type | Description | Example |
+| :--- | :---  | :---  | :--- | :--- |
+| ZOTERO_IGNORE | | str | Gitignore-style patterns marking the Zotero collections that should be ignored. One rule one line. Learn more about [gitignore](https://git-scm.com/docs/gitignore). | AI Agent/<br>**/survey<br>!LLM/survey |
 
 That's all! Now you can test the workflow by manually triggering it:
 ![test](./assets/test.png)
@@ -87,6 +100,12 @@ uv run main.py
 > [!WARNING]
 > Other package managers like pip or conda are not tested. You can still use them to install this workflow because there is a `pyproject.toml`, while potential problems exist.
 
+## 🚀 Sync with the latest version
+This project is in active development. You can subscribe this repo via `Watch` so that you can be notified once we publish new release.
+
+![Watch](./assets/subscribe_release.png)
+
+
 ## 📖 How it works
 *Zotero-arXiv-Daily* firstly retrieves all the papers in your Zotero libarary and all the papers released in the previous day, via corresponding API. Then it calculates the embedding of each paper's abstract via an embedding model. The score of a paper is its weighted average similarity over all your Zotero papers (newer paper added to the libarary has higher weight).
 
@@ -104,6 +123,11 @@ Distributed under the AGPLv3 License. See `LICENSE` for detail.
 - [arxiv](https://github.com/lukasschwab/arxiv.py)
 - [sentence_transformers](https://github.com/UKPLab/sentence-transformers)
 - [llama-cpp-python](https://github.com/abetlen/llama-cpp-python)
+
+## ☕ Buy Me A Coffee
+If you find this project helpful, welcome to sponsor me via WeChat or via [ko-fi](https://ko-fi.com/tidedra).
+![wechat_qr](assets/wechat_sponsor.JPG)
+
 
 ## 🌟 Star History
 

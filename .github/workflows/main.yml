@@ -18,15 +18,20 @@ jobs:
 
       - name: Run script
         env:
-          ZOTERO_ID: 13765527
+          ZOTERO_ID: ${{ secrets.ZOTERO_ID }}
           ZOTERO_KEY: ${{ secrets.ZOTERO_KEY }}
-          ZOTERO_TAG: 'Ocean-AD'
-          ARXIV_QUERY: 'cat:cs.AI OR cat:cs.CV OR cat:cs.LG OR cat:cs.CL OR cat:cs.SY OR cat:cs.RO'
-          SMTP_SERVER: 'smtp.qq.com'
-          SMTP_PORT: 465
-          SENDER: '1719937539@qq.com'
-          RECEIVER: 'heu_handong@163.com'
+          ZOTERO_TAG: ${{ secrets.ZOTERO_TAG }}
+          ZOTERO_IGNORE: ${{ vars.ZOTERO_IGNORE }}
+          ARXIV_QUERY: ${{ secrets.ARXIV_QUERY }}
+          SMTP_SERVER: ${{ secrets.SMTP_SERVER }}
+          SMTP_PORT: ${{ secrets.SMTP_PORT }}
+          SENDER: ${{ secrets.SENDER }}
+          RECEIVER: ${{ secrets.RECEIVER }}
           SENDER_PASSWORD: ${{ secrets.SENDER_PASSWORD }}
           MAX_PAPER_NUM: 50
+            USE_LLM_API: ${{ secrets.USE_LLM_API }}
+            OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+            OPENAI_API_BASE: ${{ secrets.OPENAI_API_BASE }}
+            MODEL_NAME: ${{ secrets.MODEL_NAME }}
         run: |
           uv run main.py

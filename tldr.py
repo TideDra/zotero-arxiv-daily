@@ -3,6 +3,7 @@ import arxiv
 import tarfile
 import re
 from llama_cpp import Llama
+from openai import OpenAI
 def get_paper_summary(paper:arxiv.Result) -> str:
     with TemporaryDirectory() as tmpdirname:
         file = paper.download_source(dirpath=tmpdirname)
@@ -39,7 +40,7 @@ def get_paper_summary(paper:arxiv.Result) -> str:
                 
     return introduction, conclusion
 
-def get_paper_tldr(paper:arxiv.Result, model:Llama) -> str:
+def get_paper_tldr(paper:arxiv.Result, model:Llama | OpenAI, **kwargs) -> str:
     try:
         introduction, conclusion = get_paper_summary(paper)
     except:
@@ -55,18 +56,33 @@ def get_paper_tldr(paper:arxiv.Result, model:Llama) -> str:
     prompt = prompt.replace('__ABSTRACT__', paper.summary)
     prompt = prompt.replace('__INTRODUCTION__', introduction)
     prompt = prompt.replace('__CONCLUSION__', conclusion)
-    prompt_tokens = model.tokenize(prompt.encode('utf-8'))
-    prompt_tokens = prompt_tokens[:3800] # truncate to 3800 tokens
-    prompt = model.detokenize(prompt_tokens).decode('utf-8')
-    response = model.create_chat_completion(
-        messages=[
-          {"role": "system", "content": "You are an assistant who perfectly summarizes scientific paper, and gives the core idea of the paper to the user."},
-          {
-              "role": "user",
-              "content": prompt
-            }
-        ],
-        top_k=0,
-        temperature=0
-    )
-    return response['choices'][0]['message']['content']
+    if isinstance(model, Llama):
+        prompt_tokens = model.tokenize(prompt.encode("utf-8"))
+        prompt_tokens = prompt_tokens[:3800]  # truncate to 3800 tokens
+        prompt = model.detokenize(prompt_tokens).decode("utf-8")
+        response = model.create_chat_completion(
+            messages=[
+                {
+                    "role": "system",
+                    "content": "You are an assistant who perfectly summarizes scientific paper, and gives the core idea of the paper to the user.",
+                },
+                {"role": "user", "content": prompt},
+            ],
+            top_k=0,
+            temperature=0,
+        )
+        return response["choices"][0]["message"]["content"]
+    elif isinstance(model, OpenAI):
+        response = model.chat.completions.create(
+            messages=[
+                {
+                    "role": "system",
+                    "content": "You are an assistant who perfectly summarizes scientific paper, and gives the core idea of the paper to the user.",
+                },
+                {"role": "user", "content": prompt},
+            ],
+            # Only set the temperature to 0 (According to OpenAI's Suggestions)
+            temperature=0,
+            model=kwargs.get("model_name"),
+        )
+        return response.choices[0].message.content
