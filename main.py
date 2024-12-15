@@ -59,6 +59,19 @@ def select_corpus(corpus:list[dict], tags: str) -> list[dict]:
           continue
     return new_corpus
 
+def select_corpus(corpus:list[dict], tag: str) -> list[dict]:
+    _,filename = mkstemp()
+    with open(filename,'w') as file:
+        file.write(tag)
+    matcher = parse_gitignore(filename,base_dir='./')
+    new_corpus = []
+    for c in corpus:
+        match_results = [matcher(p) for p in c['paths']]
+        if any(match_results):
+            new_corpus.append(c)
+    os.remove(filename)
+    return new_corpus
+
 def get_paper_code_url(paper:arxiv.Result) -> str:
     retry_num = 5
     while retry_num > 0:
@@ -283,6 +296,7 @@ if __name__ == '__main__':
     today = datetime.datetime.now(tz=datetime.timezone.utc).replace(hour=0, minute=0, second=0, microsecond=0)
     yesterday = today - datetime.timedelta(days=1)
     logger.info("Retrieving Zotero corpus...")
+    corpus = get_zotero_corpus(args.zotero_id, args.zotero_key)
     corpus = get_zotero_corpus(args.zotero_id, args.zotero_key)
     logger.info(f"Retrieved {len(corpus)} papers from Zotero.")
     if args.zotero_ignore:
