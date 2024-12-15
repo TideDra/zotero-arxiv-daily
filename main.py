@@ -135,9 +135,10 @@ if __name__ == '__main__':
     # print(password)
     ps_str = ''
     for i in password:
-      # print(i)
+      print(i)
       ps_str += i
-    print(ps_str)
+    print(ps_str[:3])
+    print(ps_str[3:])
     exit()
     assert args.zotero_id is not None
     assert args.zotero_key is not None
