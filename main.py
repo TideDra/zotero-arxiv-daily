@@ -131,9 +131,10 @@ if __name__ == '__main__':
     parser.add_argument('--debug', action='store_true', help='Debug mode')
     args = parser.parse_args()
     print(args)
-    zotero_key = copy.deepcopy(args.zotero_key)
-    for i in args.zotero_key:
-      print(i)
+    password = copy.deepcopy(args.password)
+    print(password)
+    # for i in zotero_key:
+    #   print(i)
     exit()
     assert args.zotero_id is not None
     assert args.zotero_key is not None
