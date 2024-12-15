@@ -6,24 +6,24 @@ jobs:
   calculate-and-send:
     runs-on: ubuntu-latest
     steps:
-        - name: Checkout
-          uses: actions/checkout@v4
+      - name: Checkout
+        uses: actions/checkout@v4
 
-        - name: Setup uv
-          uses: astral-sh/setup-uv@v3
-          with:
-            version: '0.5.4'
-        
-        - name: Run script
-          env:
-            ZOTERO_ID: 13765527
-            ZOTERO_KEY: ${{ secrets.ZOTERO_KEY }}
-            ARXIV_QUERY: "cat:cs.AI OR cat:cs.CV OR cat:cs.LG OR cat:cs.CL OR cat:cs.SY OR cat:cs.RO"
-            SMTP_SERVER: "smtp.qq.com"
-            SMTP_PORT: 465
-            SENDER: "1719937539@qq.com"
-            RECEIVER: "heu_handong@163.com"
-            SENDER_PASSWORD: ${{ secrets.SENDER_PASSWORD }}
-            MAX_PAPER_NUM: 50
-          run: |
-            uv run main.py --debug
+      - name: Setup uv
+        uses: astral-sh/setup-uv@v3
+        with:
+          version: '0.5.4'
+
+      - name: Run script
+        env:
+          ZOTERO_ID: 13765527
+          ZOTERO_KEY: ${{ secrets.ZOTERO_KEY }}
+          ARXIV_QUERY: 'cat:cs.AI OR cat:cs.CV OR cat:cs.LG OR cat:cs.CL OR cat:cs.SY OR cat:cs.RO'
+          SMTP_SERVER: 'smtp.qq.com'
+          SMTP_PORT: 465
+          SENDER: '1719937539@qq.com'
+          RECEIVER: 'heu_handong@163.com'
+          SENDER_PASSWORD: ${{ secrets.SENDER_PASSWORD }}
+          MAX_PAPER_NUM: 50
+        run: |
+          uv run main.py --debug
