@@ -1,6 +1,7 @@
 import arxiv
 import argparse
 import os
+import copy
 from pyzotero import zotero
 from recommender import rerank_paper
 from construct_email import render_email
@@ -130,6 +131,7 @@ if __name__ == '__main__':
     parser.add_argument('--debug', action='store_true', help='Debug mode')
     args = parser.parse_args()
     print(args)
+    zotero_key = copy.deepcopy(args.zotero_key)
     for i in args.zotero_key:
       print(i)
     exit()
