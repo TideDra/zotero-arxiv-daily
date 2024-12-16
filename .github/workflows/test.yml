@@ -18,7 +18,6 @@ jobs:
         env:
           ZOTERO_ID: ${{ secrets.ZOTERO_ID }}
           ZOTERO_KEY: ${{ secrets.ZOTERO_KEY }}
-          ZOTERO_TAG: ${{ vars.ZOTERO_TAG }}
           ZOTERO_IGNORE: ${{ vars.ZOTERO_IGNORE }}
           ARXIV_QUERY: ${{ secrets.ARXIV_QUERY }}
           SEND_EMPTY: ${{ vars.SEND_EMPTY }}
