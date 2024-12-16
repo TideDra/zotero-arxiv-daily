@@ -108,7 +108,7 @@ def get_stars(score:float):
 
 def render_email(papers:list[arxiv.Result]):
     parts = []
-    if papers == []:
+    if len(papers) == 0 :
         return framework.replace('__CONTENT__', get_empty_html())
     
     for p in papers:

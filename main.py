@@ -294,36 +294,32 @@ if __name__ == '__main__':
         logger.info("No new papers found. Yesterday maybe a holiday and no one submit their work :). If this is not the case, please check the ARXIV_QUERY.")
         if not args.send_empty:
           exit(0)
-        html = render_email(papers)
-        logger.info("Sending email...")
-        send_email(args.sender, args.receiver, args.password, args.smtp_server, args.smtp_port, html)
-        logger.success("Email sent successfully! If you don't receive the email, please check the configuration and the junk box.")
-        exit(0)
-    logger.info("Reranking papers...")
-    papers = rerank_paper(papers, corpus)
-    if args.max_paper_num != -1:
-        papers = papers[:args.max_paper_num]
-
-    logger.info("Generating TLDRs...")
-    if args.use_llm_api:
-        logger.info("Using OpenAI API to generate TLDRs...")
-        llm = OpenAI(
-            api_key=args.openai_api_key,
-            base_url=args.openai_api_base,
-        )
-        for p in tqdm(papers):
-            p.tldr = get_paper_tldr(p, llm, model_name=args.model_name)
     else:
-        logger.info("Using Local LLM model to generate TLDRs...")
-        llm = Llama.from_pretrained(
-            repo_id="Qwen/Qwen2.5-3B-Instruct-GGUF",
-            filename="qwen2.5-3b-instruct-q4_k_m.gguf",
-            n_ctx=4096,
-            n_threads=4,
-            verbose=False
-        )
-        for p in tqdm(papers):
-            p.tldr = get_paper_tldr(p, llm)
+        logger.info("Reranking papers...")
+        papers = rerank_paper(papers, corpus)
+        if args.max_paper_num != -1:
+            papers = papers[:args.max_paper_num]
+
+        logger.info("Generating TLDRs...")
+        if args.use_llm_api:
+            logger.info("Using OpenAI API to generate TLDRs...")
+            llm = OpenAI(
+                api_key=args.openai_api_key,
+                base_url=args.openai_api_base,
+            )
+            for p in tqdm(papers):
+                p.tldr = get_paper_tldr(p, llm, model_name=args.model_name)
+        else:
+            logger.info("Using Local LLM model to generate TLDRs...")
+            llm = Llama.from_pretrained(
+                repo_id="Qwen/Qwen2.5-3B-Instruct-GGUF",
+                filename="qwen2.5-3b-instruct-q4_k_m.gguf",
+                n_ctx=4096,
+                n_threads=4,
+                verbose=False
+            )
+            for p in tqdm(papers):
+                p.tldr = get_paper_tldr(p, llm)
 
     html = render_email(papers)
     logger.info("Sending email...")
