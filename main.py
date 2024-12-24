@@ -11,13 +11,14 @@ from construct_email import render_email, send_email
 import requests
 import datetime
 import re
-from time import sleep
 from tqdm import trange
 from loguru import logger
 from gitignore_parser import parse_gitignore
 from tempfile import mkstemp
 from paper import ArxivPaper
 from llm import set_global_llm
+from utils import retry
+import feedparser
 
 def get_zotero_corpus(id:str,key:str) -> list[dict]:
     zot = zotero.Zotero(id, 'user', key)
@@ -113,46 +114,31 @@ def get_arxiv_paper_from_web(query:str, start:datetime.datetime, end:datetime.da
     return results 
 
 
-def get_arxiv_paper(query:str, start:datetime.datetime, end:datetime.datetime, debug:bool=False) -> list[arxiv.Result]:
+def get_arxiv_paper(query:str, debug:bool=False) -> list[arxiv.Result]:
     client = arxiv.Client()
-    search = arxiv.Search(query=query, sort_by=arxiv.SortCriterion.SubmittedDate)
-    retry_num = 5
+    feed = feedparser.parse(f"https://rss.arxiv.org/atom/{query}")
+    if 'Feed error for query' in feed.feed.title:
+        raise Exception(f"Invalid ARXIV_QUERY: {query}.")
     if not debug:
-        while retry_num > 0:
-            papers = []
-            try:
-                for i in client.results(search):
-                    published_date = i.published
-                    if published_date < end and published_date >= start:
-                        papers.append(ArxivPaper(i))
-                    elif published_date < start:
-                        break
-                break
-            except Exception as e:
-                logger.warning(f'Got error: {e}. Try again...')
-                sleep(180)
-                retry_num -= 1
-                if retry_num == 0:
-                    raise e
-        if len(papers) == 0:
-            logger.warning("Cannot retrieve new papers from arXiv API. Try to retrieve from web page.")
-            papers = get_arxiv_paper_from_web(query, start, end)
+        papers = []
+        all_paper_ids = [i.id.removeprefix("oai:arXiv.org:") for i in feed.entries if i.arxiv_announce_type == 'new']
+        for i in trange(0,len(all_paper_ids),50,desc="Retrieving Arxiv papers"):
+            search = arxiv.Search(id_list=all_paper_ids[i:i+50])
+            with retry(5,60):
+                batch = [p for p in client.results(search)]
+            papers.extend(batch)
+
     else:
         logger.debug("Retrieve 5 arxiv papers regardless of the date.")
-        while retry_num > 0:
-            papers = []
-            try:
-                for i in client.results(search):
-                    papers.append(ArxivPaper(i))
-                    if len(papers) == 5:
-                        break
-                break
-            except Exception as e:
-                logger.warning(f'Got error: {e}. Try again...')
-                sleep(180)
-                retry_num -= 1
-                if retry_num == 0:
-                    raise e
+        search = arxiv.Search(query='cat:cs.AI', sort_by=arxiv.SortCriterion.SubmittedDate)
+        papers = []
+
+        with retry(5,60):
+            for i in client.results(search):
+                papers.append(ArxivPaper(i))
+                if len(papers) == 5:
+                    break
+
     return papers
 
 

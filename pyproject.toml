@@ -15,4 +15,5 @@ dependencies = [
     "gitignore-parser>=0.1.11",
     "tiktoken>=0.8.0",
     "python-dotenv>=1.0.1",
+    "feedparser>=6.0.11",
 ]
