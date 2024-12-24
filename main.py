@@ -11,13 +11,12 @@ from construct_email import render_email, send_email
 import requests
 import datetime
 import re
-from tqdm import trange
+from tqdm import trange,tqdm
 from loguru import logger
 from gitignore_parser import parse_gitignore
 from tempfile import mkstemp
 from paper import ArxivPaper
 from llm import set_global_llm
-from utils import retry
 import feedparser
 
 def get_zotero_corpus(id:str,key:str) -> list[dict]:
@@ -115,29 +114,29 @@ def get_arxiv_paper_from_web(query:str, start:datetime.datetime, end:datetime.da
 
 
 def get_arxiv_paper(query:str, debug:bool=False) -> list[arxiv.Result]:
-    client = arxiv.Client()
+    client = arxiv.Client(num_retries=10,delay_seconds=10)
     feed = feedparser.parse(f"https://rss.arxiv.org/atom/{query}")
     if 'Feed error for query' in feed.feed.title:
         raise Exception(f"Invalid ARXIV_QUERY: {query}.")
     if not debug:
         papers = []
         all_paper_ids = [i.id.removeprefix("oai:arXiv.org:") for i in feed.entries if i.arxiv_announce_type == 'new']
-        for i in trange(0,len(all_paper_ids),50,desc="Retrieving Arxiv papers"):
+        bar = tqdm(total=len(all_paper_ids),desc="Retrieving Arxiv papers")
+        for i in range(0,len(all_paper_ids),50):
             search = arxiv.Search(id_list=all_paper_ids[i:i+50])
-            with retry(5,60):
-                batch = [p for p in client.results(search)]
+            batch = [p for p in client.results(search)]
+            bar.update(len(batch))
             papers.extend(batch)
+        bar.close()
 
     else:
         logger.debug("Retrieve 5 arxiv papers regardless of the date.")
         search = arxiv.Search(query='cat:cs.AI', sort_by=arxiv.SortCriterion.SubmittedDate)
         papers = []
-
-        with retry(5,60):
-            for i in client.results(search):
-                papers.append(ArxivPaper(i))
-                if len(papers) == 5:
-                    break
+        for i in client.results(search):
+            papers.append(ArxivPaper(i))
+            if len(papers) == 5:
+                break
 
     return papers
 
