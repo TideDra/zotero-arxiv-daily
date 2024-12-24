@@ -113,7 +113,7 @@ def get_arxiv_paper_from_web(query:str, start:datetime.datetime, end:datetime.da
     return results 
 
 
-def get_arxiv_paper(query:str, debug:bool=False) -> list[arxiv.Result]:
+def get_arxiv_paper(query:str, debug:bool=False) -> list[ArxivPaper]:
     client = arxiv.Client(num_retries=10,delay_seconds=10)
     feed = feedparser.parse(f"https://rss.arxiv.org/atom/{query}")
     if 'Feed error for query' in feed.feed.title:
@@ -124,7 +124,7 @@ def get_arxiv_paper(query:str, debug:bool=False) -> list[arxiv.Result]:
         bar = tqdm(total=len(all_paper_ids),desc="Retrieving Arxiv papers")
         for i in range(0,len(all_paper_ids),50):
             search = arxiv.Search(id_list=all_paper_ids[i:i+50])
-            batch = [p for p in client.results(search)]
+            batch = [ArxivPaper(p) for p in client.results(search)]
             bar.update(len(batch))
             papers.extend(batch)
         bar.close()
