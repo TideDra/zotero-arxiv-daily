@@ -146,7 +146,9 @@ if __name__ == '__main__':
         logger.debug("Debug mode is on.")
     else:
         logger.remove()
-        logger.add(sys.stdout, level="WARNING")
+        # logger.add(sys.stdout, level="WARNING")
+        logger.add(sys.stdout, level="DEBUG")
+        logger.debug("Debug mode is on.")
 
     logger.info("Retrieving Zotero corpus...")
     corpus = get_zotero_corpus(args.zotero_id, args.zotero_key)
