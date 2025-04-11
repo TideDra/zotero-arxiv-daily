@@ -24,7 +24,7 @@ def get_zotero_corpus(id:str,key:str) -> list[dict]:
     corpus = [c for c in corpus if c['data']['abstractNote'] != '']
     def get_collection_path(col_key:str) -> str:
         if p := collections[col_key]['data']['parentCollection']:
-            return get_collection_path(p) + ' / ' + collections[col_key]['data']['name']
+            return get_collection_path(p) + '/' + collections[col_key]['data']['name']
         else:
             return collections[col_key]['data']['name']
     for c in corpus:
