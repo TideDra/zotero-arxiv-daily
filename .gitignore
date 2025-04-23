@@ -11,3 +11,7 @@ wheels/
 # Virtual environments
 .venv
 test.ipynb
+
+logs
+models
+test-compose.yml
