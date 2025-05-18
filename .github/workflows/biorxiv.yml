@@ -1,4 +1,4 @@
-name: Send emails daily, from arxiv and biorxiv
+name: Send emails daily, for both arxiv and biorxiv
 on:
   workflow_dispatch:
   schedule:
