@@ -101,6 +101,10 @@ Supported by [uv](https://github.com/astral-sh/uv), this workflow can easily run
 cd zotero-arxiv-daily
 uv run main.py
 ```
+To run the demo that support biorxiv recommendation, you can run
+```bash
+uv run biorxiv_demo.py
+```
 > [!IMPORTANT]
 > The workflow will download and run an LLM (Qwen2.5-3B, the file size of which is about 3G). Make sure your network and hardware can handle it.
 
