@@ -7,15 +7,17 @@ from dotenv import load_dotenv
 load_dotenv(override=True)
 os.environ["TOKENIZERS_PARALLELISM"] = "false"
 from pyzotero import zotero
-from recommender import rerank_paper
+from recommender import rerank_paper, rerank_biorxiv_paper
 from construct_email import render_email, send_email
 from tqdm import trange,tqdm
 from loguru import logger
 from gitignore_parser import parse_gitignore
 from tempfile import mkstemp
-from paper import ArxivPaper
+from paper import ArxivPaper, BiorxivPaper
 from llm import set_global_llm
 import feedparser
+from datetime import datetime, timedelta
+import requests
 
 def get_zotero_corpus(id:str,key:str) -> list[dict]:
     zot = zotero.Zotero(id, 'user', key)
@@ -74,6 +76,46 @@ def get_arxiv_paper(query:str, debug:bool=False) -> list[ArxivPaper]:
 
     return papers
 
+def get_biorxiv_paper(query:str, debug:bool=False) -> list[ArxivPaper]:
+    if not debug:
+        today = datetime.now()
+        yesterday = today - timedelta(days=1)
+        formatted_date = today.strftime("%Y-%m-%d")
+        formatted_yesterday = yesterday.strftime("%Y-%m-%d")
+        if "+" in query:
+            queries = query.split("+")
+        else:
+            queries = [query]
+
+        papers = []
+        for query in queries:
+            url = f"https://api.biorxiv.org/details/biorxiv/{formatted_yesterday}/{formatted_date}?category={query}"
+            logger.info(f"Retrieving biorxiv papers from {url}...")
+            response = requests.get(url)
+            if response.status_code != 200:
+                raise Exception(f"Invalid URL format: {url}.")
+            data = response.json()
+            for i in data['collection']:
+                if i['doi'] == '':
+                    continue
+                paper = BiorxivPaper(i)
+                papers.append(paper)
+    else:
+        url = "https://api.biorxiv.org/details/biorxiv/2025-03-21/2025-03-28?category=cell_biology"
+        response = requests.get(url)
+        if response.status_code != 200:
+            raise Exception(f"Invalid BIORXIV_QUERY: {query}.")
+        data = response.json()
+        logger.debug("Retrieve 5 biorxiv papers regardless of the date.")
+        papers = []
+        for i in data['collection']:
+            if i['doi'] == '':
+                continue
+            paper = BiorxivPaper(i)
+            papers.append(paper)
+            if len(papers) == 5:
+                break
+    return papers
 
 
 parser = argparse.ArgumentParser(description='Recommender system for academic papers')
@@ -107,6 +149,7 @@ if __name__ == '__main__':
     add_argument('--send_empty', type=bool, help='If get no arxiv paper, send empty email',default=False)
     add_argument('--max_paper_num', type=int, help='Maximum number of papers to recommend',default=100)
     add_argument('--arxiv_query', type=str, help='Arxiv search query')
+    add_argument('--biorxiv_query', type=str, help='Biorxiv search category')
     add_argument('--smtp_server', type=str, help='SMTP server')
     add_argument('--smtp_port', type=int, help='SMTP port')
     add_argument('--sender', type=str, help='Sender email address')
@@ -171,17 +214,23 @@ if __name__ == '__main__':
         logger.info(f"Ignoring papers in:\n {args.zotero_ignore}...")
         corpus = filter_corpus(corpus, args.zotero_ignore)
         logger.info(f"Remaining {len(corpus)} papers after filtering.")
-    logger.info("Retrieving Arxiv papers...")
+    logger.info("Retrieving Biorxiv papers...")
     papers = get_arxiv_paper(args.arxiv_query, args.debug)
-    if len(papers) == 0:
+    biorxiv_papers = get_biorxiv_paper(args.biorxiv_query, args.debug)
+    logger.info(f"Retrieved {len(papers)} papers from Arxiv.")
+    logger.info(f"Retrieved {len(biorxiv_papers)} papers from Biorxiv.")
+    if len(papers) == 0 and len(biorxiv_papers) == 0:
         logger.info("No new papers found. Yesterday maybe a holiday and no one submit their work :). If this is not the case, please check the ARXIV_QUERY.")
         if not args.send_empty:
           exit(0)
     else:
         logger.info("Reranking papers...")
-        papers = rerank_paper(papers, corpus)
-        if args.max_paper_num != -1:
+        papers, biorxiv_papers = rerank_paper(papers, biorxiv_papers, corpus)
+        # biorxiv_papers = rerank_biorxiv_paper(papers, corpus)
+        if args.max_paper_num != -1 and args.max_paper_num < len(papers):
             papers = papers[:args.max_paper_num]
+        if args.max_paper_num != -1 and args.max_paper_num < len(biorxiv_papers):
+            biorxiv_papers = biorxiv_papers[:args.max_paper_num]
         if args.use_llm_api:
             logger.info("Using OpenAI API as global LLM.")
             set_global_llm(api_key=args.openai_api_key, base_url=args.openai_api_base, model=args.model_name, lang=args.language)
@@ -189,7 +238,7 @@ if __name__ == '__main__':
             logger.info("Using Local LLM as global LLM.")
             set_global_llm(lang=args.language)
 
-    html = render_email(papers)
+    html = render_email(papers, biorxiv_papers)
     logger.info("Sending email...")
     send_email(args.sender, args.receiver, args.sender_password, args.smtp_server, args.smtp_port, html)
     logger.success("Email sent successfully! If you don't receive the email, please check the configuration and the junk box.")

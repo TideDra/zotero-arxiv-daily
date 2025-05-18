@@ -1,4 +1,4 @@
-from paper import ArxivPaper
+from paper import ArxivPaper, BiorxivPaper
 import math
 from tqdm import tqdm
 from email.header import Header
@@ -33,8 +33,14 @@ framework = """
 </head>
 <body>
 
+<h1>Arxiv Papers</h1>
 <div>
-    __CONTENT__
+    __CONTENT-ARXIV__
+</div>
+
+<h1>BioRxiv Papers</h1>
+<div>
+    __CONTENT-BIORXIV__
 </div>
 
 <br><br>
@@ -117,10 +123,10 @@ def get_stars(score:float):
         return '<div class="star-wrapper">'+full_star * full_star_num + half_star * half_star_num + '</div>'
 
 
-def render_email(papers:list[ArxivPaper]):
+def render_email(papers:list[ArxivPaper], papers_biorxiv:list[BiorxivPaper]):
     parts = []
     if len(papers) == 0 :
-        return framework.replace('__CONTENT__', get_empty_html())
+        framework1 = framework.replace('__CONTENT-ARXIV__', get_empty_html())
     
     for p in tqdm(papers,desc='Rendering Email'):
         rate = get_stars(p.score)
@@ -135,10 +141,31 @@ def render_email(papers:list[ArxivPaper]):
                 affiliations += ', ...'
         else:
             affiliations = 'Unknown Affiliation'
-        parts.append(get_block_html(p.title, authors,rate,p.arxiv_id ,p.tldr, p.pdf_url, p.code_url, affiliations))
+        parts.append(get_block_html(p.title, authors,rate,p.arxiv_id,p.tldr, p.pdf_url, p.code_url, affiliations))
 
     content = '<br>' + '</br><br>'.join(parts) + '</br>'
-    return framework.replace('__CONTENT__', content)
+    framework1 = framework.replace('__CONTENT-ARXIV__', content)
+
+
+    parts = []
+    if len(papers_biorxiv) == 0 :
+        return framework1.replace('__CONTENT-BIORXIV__', get_empty_html())
+    
+    for p in tqdm(papers_biorxiv,desc='Rendering Email'):
+        rate = get_stars(p.score)
+        authors = [a for a in p.authors[:5]]
+        authors = ', '.join(authors)
+        if len(p.authors) > 5:
+            authors += ', ...'
+        if p.institution is not None:
+            affiliations = p.institution
+        else:
+            affiliations = 'Unknown Affiliation'
+        parts.append(get_block_html(p.title, authors,rate,p.biorxiv_id,p.tldr, p.paper_url, p.code_url, affiliations))
+
+    content = '<br>' + '</br><br>'.join(parts) + '</br>'
+    return framework1.replace('__CONTENT-BIORXIV__', content)
+
 
 def send_email(sender:str, receiver:str, password:str,smtp_server:str,smtp_port:int, html:str,):
     def _format_addr(s):

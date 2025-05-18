@@ -226,3 +226,75 @@ class ArxivPaper:
                 logger.debug(f"Failed to extract affiliations of {self.arxiv_id}: {e}")
                 return None
             return affiliations
+
+
+class BiorxivPaper:
+    def __init__(self, paper:dict):
+        self._paper = paper
+        self.score = None
+    
+    @property
+    def title(self) -> str:
+        return self._paper['title']
+
+    @cached_property
+    def summary(self) -> str:
+        return self._paper['abstract']
+    
+    @property
+    def authors(self) -> list[str]:
+        return self._paper['authors'].split(";")
+    
+    @property
+    def biorxiv_id(self) -> str:
+        return self._paper['doi']
+    
+    @property
+    def paper_url(self) -> str:
+        return f"https://www.biorxiv.org/content/{self.biorxiv_id}v{self._paper['version']}"
+    
+    @property
+    def code_url(self) -> Optional[str]:
+        return None
+
+    @property
+    def category(self) -> str:
+        return self._paper['category']
+    
+    @property
+    def institution(self) -> str:
+        return self._paper['author_corresponding_institution']
+    
+    @property
+    def update_time(self) -> str:
+        return self._paper['date']
+    
+    @cached_property
+    def tldr(self) -> str:
+        llm = get_llm()
+        prompt = """Given the title and abstract of a paper in latex format, generate a one-sentence TLDR summary in __LANG__:
+        
+        \\title{__TITLE__}
+        \\begin{abstract}__ABSTRACT__\\end{abstract}
+        """
+        prompt = prompt.replace('__LANG__', llm.lang)
+        prompt = prompt.replace('__TITLE__', self.title)
+        prompt = prompt.replace('__ABSTRACT__', self.summary)
+
+        # use gpt-4o tokenizer for estimation
+        enc = tiktoken.encoding_for_model("gpt-4o")
+        prompt_tokens = enc.encode(prompt)
+        prompt_tokens = prompt_tokens[:4000]  # truncate to 4000 tokens
+        prompt = enc.decode(prompt_tokens)
+        
+        tldr = llm.generate(
+            messages=[
+                {
+                    "role": "system",
+                    "content": "You are an assistant who perfectly summarizes scientific paper, and gives the core idea of the paper to the user.",
+                },
+                {"role": "user", "content": prompt},
+            ]
+        )
+        return tldr
+    
