@@ -127,44 +127,44 @@ def render_email(papers:list[ArxivPaper], papers_biorxiv:list[BiorxivPaper]):
     parts = []
     if len(papers) == 0 :
         framework1 = framework.replace('__CONTENT-ARXIV__', get_empty_html())
-    
-    for p in tqdm(papers,desc='Rendering Email'):
-        rate = get_stars(p.score)
-        authors = [a.name for a in p.authors[:5]]
-        authors = ', '.join(authors)
-        if len(p.authors) > 5:
-            authors += ', ...'
-        if p.affiliations is not None:
-            affiliations = p.affiliations[:5]
-            affiliations = ', '.join(affiliations)
-            if len(p.affiliations) > 5:
-                affiliations += ', ...'
-        else:
-            affiliations = 'Unknown Affiliation'
-        parts.append(get_block_html(p.title, authors,rate,p.arxiv_id,p.tldr, p.pdf_url, p.code_url, affiliations))
+    else:
+        for p in tqdm(papers,desc='Rendering Email'):
+            rate = get_stars(p.score)
+            authors = [a.name for a in p.authors[:5]]
+            authors = ', '.join(authors)
+            if len(p.authors) > 5:
+                authors += ', ...'
+            if p.affiliations is not None:
+                affiliations = p.affiliations[:5]
+                affiliations = ', '.join(affiliations)
+                if len(p.affiliations) > 5:
+                    affiliations += ', ...'
+            else:
+                affiliations = 'Unknown Affiliation'
+            parts.append(get_block_html(p.title, authors,rate,p.arxiv_id,p.tldr, p.pdf_url, p.code_url, affiliations))
 
-    content = '<br>' + '</br><br>'.join(parts) + '</br>'
-    framework1 = framework.replace('__CONTENT-ARXIV__', content)
+        content = '<br>' + '</br><br>'.join(parts) + '</br>'
+        framework1 = framework.replace('__CONTENT-ARXIV__', content)
 
 
     parts = []
     if len(papers_biorxiv) == 0 :
         return framework1.replace('__CONTENT-BIORXIV__', get_empty_html())
-    
-    for p in tqdm(papers_biorxiv,desc='Rendering Email'):
-        rate = get_stars(p.score)
-        authors = [a for a in p.authors[:5]]
-        authors = ', '.join(authors)
-        if len(p.authors) > 5:
-            authors += ', ...'
-        if p.institution is not None:
-            affiliations = p.institution
-        else:
-            affiliations = 'Unknown Affiliation'
-        parts.append(get_block_html(p.title, authors,rate,p.biorxiv_id,p.tldr, p.paper_url, p.code_url, affiliations))
+    else:
+        for p in tqdm(papers_biorxiv,desc='Rendering Email'):
+            rate = get_stars(p.score)
+            authors = [a for a in p.authors[:5]]
+            authors = ', '.join(authors)
+            if len(p.authors) > 5:
+                authors += ', ...'
+            if p.institution is not None:
+                affiliations = p.institution
+            else:
+                affiliations = 'Unknown Affiliation'
+            parts.append(get_block_html(p.title, authors,rate,p.biorxiv_id,p.tldr, p.paper_url, p.code_url, affiliations))
 
-    content = '<br>' + '</br><br>'.join(parts) + '</br>'
-    return framework1.replace('__CONTENT-BIORXIV__', content)
+        content = '<br>' + '</br><br>'.join(parts) + '</br>'
+        return framework1.replace('__CONTENT-BIORXIV__', content)
 
 
 def send_email(sender:str, receiver:str, password:str,smtp_server:str,smtp_port:int, html:str,):
