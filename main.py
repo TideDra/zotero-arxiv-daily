@@ -16,21 +16,34 @@ from paper import ArxivPaper
 from llm import set_global_llm
 import feedparser
 
-def get_zotero_corpus(id:str,key:str) -> list[dict]:
+import zotero
+from typing import List, Dict
+
+def get_zotero_corpus(id: str, key: str) -> List[Dict]:
+    target_folder_path = "/forgery detection"
     zot = zotero.Zotero(id, 'user', key)
+    
+
     collections = zot.everything(zot.collections())
-    collections = {c['key']:c for c in collections}
+    collections_dict = {c['key']: c for c in collections}
+    
     corpus = zot.everything(zot.items(itemType='conferencePaper || journalArticle || preprint'))
+
     corpus = [c for c in corpus if c['data']['abstractNote'] != '']
-    def get_collection_path(col_key:str) -> str:
-        if p := collections[col_key]['data']['parentCollection']:
-            return get_collection_path(p) + '/' + collections[col_key]['data']['name']
+    
+    def get_collection_path(col_key: str) -> str:
+        if p := collections_dict[col_key]['data']['parentCollection']:
+            return get_collection_path(p) + '/' + collections_dict[col_key]['data']['name']
         else:
-            return collections[col_key]['data']['name']
-    for c in corpus:
-        paths = [get_collection_path(col) for col in c['data']['collections']]
-        c['paths'] = paths
-    return corpus
+            return '/' + collections_dict[col_key]['data']['name']
+    filtered_corpus = []
+    for item in corpus:
+        paths = [get_collection_path(col) for col in item['data']['collections']]
+        item['paths'] = paths
+        if any(path.startswith(target_folder_path + '/') or path == target_folder_path for path in paths):
+            filtered_corpus.append(item)
+    
+    return filtered_corpus
 
 def filter_corpus(corpus:list[dict], pattern:str) -> list[dict]:
     _,filename = mkstemp()
