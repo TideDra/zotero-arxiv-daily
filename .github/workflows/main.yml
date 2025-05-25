@@ -2,7 +2,7 @@ name: Send emails daily
 on:
   workflow_dispatch:
   schedule:
-    - cron: '12 11 * * *'
+    - cron: '19 11 * * *'
 
 jobs:
   calculate-and-send:
@@ -38,4 +38,4 @@ jobs:
           MODEL_NAME: ${{ secrets.MODEL_NAME }}
           LANGUAGE: ${{ vars.LANGUAGE }}
         run: |
-          uv run main.py
+          uv run main.py --debug
