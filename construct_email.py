@@ -33,12 +33,12 @@ framework = """
 </head>
 <body>
 
-<h1>__NUMBER-ARXIV__ Arxiv Papers</h1>
+<h1>Arxiv Papers</h1>
 <div>
     __CONTENT-ARXIV__
 </div>
 
-<h1>__NUMBER-BIORXIV__ BioRxiv Papers</h1>
+<h1>BioRxiv Papers</h1>
 <div>
     __CONTENT-BIORXIV__
 </div>
@@ -126,7 +126,6 @@ def get_stars(score:float):
 def render_email(papers:list[ArxivPaper], papers_biorxiv:list[BiorxivPaper]):
     parts = []
     if len(papers) == 0 :
-        framework = framework.replace('__NUMBER-ARXIV__', '0')
         framework1 = framework.replace('__CONTENT-ARXIV__', get_empty_html())
     else:
         for p in tqdm(papers,desc='Rendering Email'):
@@ -145,13 +144,11 @@ def render_email(papers:list[ArxivPaper], papers_biorxiv:list[BiorxivPaper]):
             parts.append(get_block_html(p.title, authors,rate,p.arxiv_id,p.tldr, p.pdf_url, p.code_url, affiliations))
 
         content = '<br>' + '</br><br>'.join(parts) + '</br>'
-        framework = framework.replace('__NUMBER-ARXIV__', str(len(papers)))
         framework1 = framework.replace('__CONTENT-ARXIV__', content)
 
 
     parts = []
     if len(papers_biorxiv) == 0:
-        framework1 = framework1.replace('__NUMBER-BIORXIV__', '0')
         return framework1.replace('__CONTENT-BIORXIV__', get_empty_html())
     else:
         for p in tqdm(papers_biorxiv,desc='Rendering Email'):
@@ -167,7 +164,6 @@ def render_email(papers:list[ArxivPaper], papers_biorxiv:list[BiorxivPaper]):
             parts.append(get_block_html(p.title, authors,rate,p.biorxiv_id,p.tldr, p.paper_url, p.code_url, affiliations))
 
         content = '<br>' + '</br><br>'.join(parts) + '</br>'
-        framework1 = framework1.replace('__NUMBER-BIORXIV__', str(len(papers_biorxiv)))
         return framework1.replace('__CONTENT-BIORXIV__', content)
 
 
