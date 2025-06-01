@@ -147,7 +147,8 @@ if __name__ == '__main__':
     add_argument('--zotero_key', type=str, help='Zotero API key')
     add_argument('--zotero_ignore',type=str,help='Zotero collection to ignore, using gitignore-style pattern.')
     add_argument('--send_empty', type=bool, help='If get no arxiv paper, send empty email',default=False)
-    add_argument('--max_paper_num', type=int, help='Maximum number of papers to recommend',default=100)
+    add_argument('--max_paper_num', type=int, help='Maximum number of papers to recommend',default=50)
+    add_argument('--max_biorxiv_num', type=int, help='Maximum number of biorxiv papers to recommend',default=50)
     add_argument('--arxiv_query', type=str, help='Arxiv search query')
     add_argument('--biorxiv_query', type=str, help='Biorxiv search category')
     add_argument('--smtp_server', type=str, help='SMTP server')
@@ -229,8 +230,8 @@ if __name__ == '__main__':
         # biorxiv_papers = rerank_biorxiv_paper(papers, corpus)
         if args.max_paper_num != -1 and args.max_paper_num < len(papers):
             papers = papers[:args.max_paper_num]
-        if args.max_paper_num != -1 and args.max_paper_num < len(biorxiv_papers):
-            biorxiv_papers = biorxiv_papers[:args.max_paper_num]
+        if args.max_biorxiv_num != -1 and args.max_biorxiv_num < len(biorxiv_papers):
+            biorxiv_papers = biorxiv_papers[:args.max_biorxiv_num]
         if args.use_llm_api:
             logger.info("Using OpenAI API as global LLM.")
             set_global_llm(api_key=args.openai_api_key, base_url=args.openai_api_base, model=args.model_name, lang=args.language)
