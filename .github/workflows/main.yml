@@ -37,5 +37,9 @@ jobs:
           OPENAI_API_BASE: ${{ secrets.OPENAI_API_BASE }}
           MODEL_NAME: ${{ secrets.MODEL_NAME }}
           LANGUAGE: ${{ vars.LANGUAGE }}
+          MAX_PAPER_NUM_ARXIV: ${{ secrets.MAX_PAPER_NUM_ARXIV || secrets.MAX_PAPER_NUM }}
+          MAX_PAPER_NUM_MEDRXIV: ${{ secrets.MAX_PAPER_NUM_MEDRXIV }}
+          MEDRXIV_DAYS: ${{ secrets.MEDRXIV_DAYS }}
+          MEDRXIV_SUBJECTS: ${{ secrets.MEDRXIV_SUBJECTS }}
         run: |
           uv run main.py

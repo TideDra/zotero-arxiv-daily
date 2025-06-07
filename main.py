@@ -2,6 +2,8 @@ import arxiv
 import argparse
 import os
 import sys
+import datetime
+import requests
 from dotenv import load_dotenv
 load_dotenv(override=True)
 os.environ["TOKENIZERS_PARALLELISM"] = "false"
@@ -12,7 +14,7 @@ from tqdm import trange,tqdm
 from loguru import logger
 from gitignore_parser import parse_gitignore
 from tempfile import mkstemp
-from paper import ArxivPaper
+from paper import ArxivPaper, MedrxivPaper
 from llm import set_global_llm
 import feedparser
 
@@ -48,6 +50,8 @@ def filter_corpus(corpus:list[dict], pattern:str) -> list[dict]:
 
 def get_arxiv_paper(query:str, debug:bool=False) -> list[ArxivPaper]:
     client = arxiv.Client(num_retries=10,delay_seconds=10)
+    if not query:
+        return []
     feed = feedparser.parse(f"https://rss.arxiv.org/atom/{query}")
     if 'Feed error for query' in feed.feed.title:
         raise Exception(f"Invalid ARXIV_QUERY: {query}.")
@@ -73,14 +77,67 @@ def get_arxiv_paper(query:str, debug:bool=False) -> list[ArxivPaper]:
 
     return papers
 
+def get_medrxiv_papers(days: int = 1, subjects_query: str = None) -> list[MedrxivPaper]:
+    if days <= 0:
+        return []
+        
+    end_date = datetime.date.today()
+    start_date = end_date - datetime.timedelta(days=days)
+    end_date_str = end_date.strftime('%Y-%m-%d')
+    start_date_str = start_date.strftime('%Y-%m-%d')
+    interval = f"{start_date_str}/{end_date_str}"
+    
+    logger.info(f"Fetching medRxiv papers from {start_date_str} to {end_date_str}")
+    
+    subjects_to_filter = set()
+    if subjects_query:
+        subjects_to_filter = set(s.strip() for s in subjects_query.split('+'))
+        logger.info(f"Filtering medRxiv for subjects: {subjects_to_filter}")
+
+    papers = []
+    cursor = 0
+    with tqdm(desc="Retrieving MedRxiv papers") as bar:
+        while True:
+            url = f"https://api.medrxiv.org/details/medrxiv/{interval}/{cursor}/json"
+            try:
+                response = requests.get(url, timeout=30)
+                response.raise_for_status()
+                data = response.json()
+                collection = data.get('collection', [])
+                
+                if not collection:
+                    break
+                
+                filtered_collection = []
+                if subjects_to_filter:
+                    for paper_data in collection:
+                        if paper_data.get('category', '').strip() in subjects_to_filter:
+                            filtered_collection.append(paper_data)
+                else:
+                    filtered_collection = collection
+
+                for paper_data in filtered_collection:
+                    papers.append(MedrxivPaper(paper_data))
+                
+                bar.update(len(collection))
+                
+                if len(collection) < 100:
+                    break
+                
+                cursor += len(collection)
+
+            except requests.exceptions.RequestException as e:
+                logger.error(f"Failed to fetch from medRxiv: {e}")
+                break
+                
+    logger.info(f"Retrieved {len(papers)} papers from medRxiv.")
+    return papers
 
 
 parser = argparse.ArgumentParser(description='Recommender system for academic papers')
 
 def add_argument(*args, **kwargs):
     def get_env(key:str,default=None):
-        # handle environment variables generated at Workflow runtime
-        # Unset environment variables are passed as '', we should treat them as None
         v = os.environ.get(key)
         if v == '' or v is None:
             return default
@@ -90,11 +147,10 @@ def add_argument(*args, **kwargs):
     env_name = arg_full_name.upper()
     env_value = get_env(env_name)
     if env_value is not None:
-        #convert env_value to the specified type
         if kwargs.get('type') == bool:
             env_value = env_value.lower() in ['true','1']
-        else:
-            env_value = kwargs.get('type')(env_value)
+        elif 'type' in kwargs:
+             env_value = kwargs.get('type')(env_value)
         parser.set_defaults(**{arg_full_name:env_value})
 
 
@@ -104,8 +160,11 @@ if __name__ == '__main__':
     add_argument('--zotero_key', type=str, help='Zotero API key')
     add_argument('--zotero_ignore',type=str,help='Zotero collection to ignore, using gitignore-style pattern.')
     add_argument('--send_empty', type=bool, help='If get no arxiv paper, send empty email',default=False)
-    add_argument('--max_paper_num', type=int, help='Maximum number of papers to recommend',default=100)
+    add_argument('--max_paper_num_arxiv', type=int, help='Maximum number of papers to recommend from arXiv. -1 for all.',default=10)
+    add_argument('--max_paper_num_medrxiv', type=int, help='Maximum number of papers to recommend from medRxiv. -1 for all.',default=10)
     add_argument('--arxiv_query', type=str, help='Arxiv search query')
+    add_argument('--medrxiv_days', type=int, help='Number of recent days to fetch from medRxiv', default=0)
+    add_argument('--medrxiv_subjects', type=str, help='medRxiv subjects to filter for, separated by "+"', default=None)
     add_argument('--smtp_server', type=str, help='SMTP server')
     add_argument('--smtp_port', type=int, help='SMTP port')
     add_argument('--sender', type=str, help='Sender email address')
@@ -145,7 +204,7 @@ if __name__ == '__main__':
     args = parser.parse_args()
     assert (
         not args.use_llm_api or args.openai_api_key is not None
-    )  # If use_llm_api is True, openai_api_key must be provided
+    )
     if args.debug:
         logger.remove()
         logger.add(sys.stdout, level="DEBUG")
@@ -161,17 +220,40 @@ if __name__ == '__main__':
         logger.info(f"Ignoring papers in:\n {args.zotero_ignore}...")
         corpus = filter_corpus(corpus, args.zotero_ignore)
         logger.info(f"Remaining {len(corpus)} papers after filtering.")
-    logger.info("Retrieving Arxiv papers...")
-    papers = get_arxiv_paper(args.arxiv_query, args.debug)
+
+    all_papers = []
+    if args.arxiv_query:
+        logger.info("Retrieving Arxiv papers...")
+        arxiv_papers = get_arxiv_paper(args.arxiv_query, args.debug)
+        all_papers.extend(arxiv_papers)
+
+    if args.medrxiv_days > 0:
+        medrxiv_papers = get_medrxiv_papers(days=args.medrxiv_days, subjects_query=args.medrxiv_subjects)
+        all_papers.extend(medrxiv_papers)
+
+    papers = all_papers
     if len(papers) == 0:
-        logger.info("No new papers found. Yesterday maybe a holiday and no one submit their work :). If this is not the case, please check the ARXIV_QUERY.")
+        logger.info("No new papers found. Yesterday maybe a holiday and no one submit their work :). If this is not the case, please check the query settings.")
         if not args.send_empty:
           exit(0)
     else:
-        logger.info("Reranking papers...")
-        papers = rerank_paper(papers, corpus)
-        if args.max_paper_num != -1:
-            papers = papers[:args.max_paper_num]
+        logger.info(f"Reranking {len(papers)} papers in total...")
+        sorted_papers = rerank_paper(papers, corpus)
+        
+        arxiv_sorted = [p for p in sorted_papers if isinstance(p, ArxivPaper)]
+        medrxiv_sorted = [p for p in sorted_papers if isinstance(p, MedrxivPaper)]
+
+        final_arxiv = arxiv_sorted
+        if args.max_paper_num_arxiv != -1:
+            final_arxiv = arxiv_sorted[:args.max_paper_num_arxiv]
+
+        final_medrxiv = medrxiv_sorted
+        if args.max_paper_num_medrxiv != -1:
+            final_medrxiv = medrxiv_sorted[:args.max_paper_num_medrxiv]
+
+        papers = final_arxiv + final_medrxiv
+        papers = sorted(papers, key=lambda p: p.score, reverse=True)
+        
         if args.use_llm_api:
             logger.info("Using OpenAI API as global LLM.")
             set_global_llm(api_key=args.openai_api_key, base_url=args.openai_api_base, model=args.model_name, lang=args.language)
@@ -183,4 +265,3 @@ if __name__ == '__main__':
     logger.info("Sending email...")
     send_email(args.sender, args.receiver, args.sender_password, args.smtp_server, args.smtp_port, html)
     logger.success("Email sent successfully! If you don't receive the email, please check the configuration and the junk box.")
-

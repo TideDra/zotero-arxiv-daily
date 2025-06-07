@@ -1,4 +1,4 @@
-from typing import Optional
+from typing import Optional, List
 from functools import cached_property
 from tempfile import TemporaryDirectory
 import arxiv
@@ -10,34 +10,58 @@ from requests.adapters import HTTPAdapter, Retry
 from loguru import logger
 import tiktoken
 from contextlib import ExitStack
+from abc import ABC, abstractmethod
 
-
-
-class ArxivPaper:
-    def __init__(self,paper:arxiv.Result):
-        self._paper = paper
+class BasePaper(ABC):
+    def __init__(self):
         self.score = None
-    
+
+    @property
+    @abstractmethod
+    def title(self) -> str:
+        pass
+
+    @property
+    @abstractmethod
+    def summary(self) -> str:
+        pass
+
+    @property
+    @abstractmethod
+    def authors(self) -> List[str]:
+        pass
+
+    @property
+    @abstractmethod
+    def pdf_url(self) -> str:
+        pass
+
+
+class ArxivPaper(BasePaper):
+    def __init__(self, paper: arxiv.Result):
+        super().__init__()
+        self._paper = paper
+
     @property
     def title(self) -> str:
         return self._paper.title
-    
+
     @property
     def summary(self) -> str:
         return self._paper.summary
-    
+
     @property
-    def authors(self) -> list[str]:
-        return self._paper.authors
-    
-    @cached_property
-    def arxiv_id(self) -> str:
-        return re.sub(r'v\d+$', '', self._paper.get_short_id())
-    
+    def authors(self) -> List[str]:
+        return [author.name for author in self._paper.authors]
+
     @property
     def pdf_url(self) -> str:
         return self._paper.pdf_url
-    
+
+    @cached_property
+    def arxiv_id(self) -> str:
+        return re.sub(r'v\d+$', '', self._paper.get_short_id())
+
     @cached_property
     def code_url(self) -> Optional[str]:
         s = requests.Session()
@@ -226,3 +250,29 @@ class ArxivPaper:
                 logger.debug(f"Failed to extract affiliations of {self.arxiv_id}: {e}")
                 return None
             return affiliations
+
+class MedrxivPaper(BasePaper):
+    def __init__(self, api_result: dict):
+        super().__init__()
+        self._data = api_result
+
+    @property
+    def title(self) -> str:
+        return self._data.get('title', '')
+
+    @property
+    def summary(self) -> str:
+        return self._data.get('abstract', '')
+
+    @property
+    def authors(self) -> List[str]:
+        author_string = self._data.get('authors', '')
+        return [name.strip() for name in author_string.split(';')]
+
+    @property
+    def pdf_url(self) -> str:
+        doi = self._data.get('doi', '')
+        if doi:
+            version = self._data.get('version', '1')
+            return f"https://www.medrxiv.org/content/{doi}v{version}.full.pdf"
+        return ""

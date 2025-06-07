@@ -1,4 +1,4 @@
-from paper import ArxivPaper
+from paper import BasePaper, ArxivPaper, MedrxivPaper
 import math
 from tqdm import tqdm
 from email.header import Header
@@ -58,10 +58,11 @@ def get_empty_html():
   """
   return block_template
 
-def get_block_html(title:str, authors:str, rate:str,arxiv_id:str, abstract:str, pdf_url:str, code_url:str=None, affiliations:str=None):
+def get_block_html(title:str, authors:str, rate:str,paper_id:str, tldr:str, pdf_url:str, code_url:str=None, affiliations:str=None):
     code = f'<a href="{code_url}" style="display: inline-block; text-decoration: none; font-size: 14px; font-weight: bold; color: #fff; background-color: #5bc0de; padding: 8px 16px; border-radius: 4px; margin-left: 8px;">Code</a>' if code_url else ''
+    affiliations_html = f"<br><i>{affiliations}</i>" if affiliations else ""
     block_template = """
-    <table border="0" cellpadding="0" cellspacing="0" width="100%" style="font-family: Arial, sans-serif; border: 1px solid #ddd; border-radius: 8px; padding: 16px; background-color: #f9f9f9;">
+    <table border="0" cellpadding="0" cellspacing="0" width="100%" style="font-family: Arial, sans-serif; border: 1px solid #ddd; border-radius: 8px; padding: 16px; background-color: #f9f9f9; margin-bottom: 1em;">
     <tr>
         <td style="font-size: 20px; font-weight: bold; color: #333;">
             {title}
@@ -70,8 +71,7 @@ def get_block_html(title:str, authors:str, rate:str,arxiv_id:str, abstract:str, 
     <tr>
         <td style="font-size: 14px; color: #666; padding: 8px 0;">
             {authors}
-            <br>
-            <i>{affiliations}</i>
+            {affiliations_html}
         </td>
     </tr>
     <tr>
@@ -81,12 +81,12 @@ def get_block_html(title:str, authors:str, rate:str,arxiv_id:str, abstract:str, 
     </tr>
     <tr>
         <td style="font-size: 14px; color: #333; padding: 8px 0;">
-            <strong>arXiv ID:</strong> {arxiv_id}
+            <strong>ID:</strong> {paper_id}
         </td>
     </tr>
     <tr>
         <td style="font-size: 14px; color: #333; padding: 8px 0;">
-            <strong>TLDR:</strong> {abstract}
+            <strong>TLDR:</strong> {tldr}
         </td>
     </tr>
 
@@ -98,7 +98,7 @@ def get_block_html(title:str, authors:str, rate:str,arxiv_id:str, abstract:str, 
     </tr>
 </table>
 """
-    return block_template.format(title=title, authors=authors,rate=rate,arxiv_id=arxiv_id, abstract=abstract, pdf_url=pdf_url, code=code, affiliations=affiliations)
+    return block_template.format(title=title, authors=authors, rate=rate, paper_id=paper_id, tldr=tldr, pdf_url=pdf_url, code=code, affiliations_html=affiliations_html)
 
 def get_stars(score:float):
     full_star = '<span class="full-star">⭐</span>'
@@ -117,28 +117,65 @@ def get_stars(score:float):
         return '<div class="star-wrapper">'+full_star * full_star_num + half_star * half_star_num + '</div>'
 
 
-def render_email(papers:list[ArxivPaper]):
-    parts = []
-    if len(papers) == 0 :
+def _generate_paper_html(paper: BasePaper) -> str:
+    """Helper function to generate HTML block for a single paper."""
+    rate = get_stars(paper.score)
+    
+    author_list = paper.authors
+    authors_str = ', '.join(author_list[:5])
+    if len(author_list) > 5:
+        authors_str += ', et al.'
+
+    affiliations_str = ""
+    if hasattr(paper, 'affiliations') and paper.affiliations:
+        affiliations_list = paper.affiliations[:5]
+        affiliations_str = ', '.join(affiliations_list)
+        if len(paper.affiliations) > 5:
+            affiliations_str += ', ...'
+    else:
+        affiliations_str = 'Unknown Affiliation'
+        
+    tldr_str = ""
+    if hasattr(paper, 'tldr'):
+        tldr_str = paper.tldr
+    else:
+        tldr_str = paper.summary
+        
+    paper_id_str = ""
+    if isinstance(paper, ArxivPaper):
+        paper_id_str = paper.arxiv_id
+    elif isinstance(paper, MedrxivPaper):
+        paper_id_str = paper._data.get('doi', 'N/A')
+
+    code_url = paper.code_url if hasattr(paper, 'code_url') else None
+
+    return get_block_html(paper.title, authors_str, rate, paper_id_str, tldr_str, paper.pdf_url, code_url, affiliations_str)
+
+def render_email(papers:list[BasePaper]):
+    if not papers :
         return framework.replace('__CONTENT__', get_empty_html())
     
-    for p in tqdm(papers,desc='Rendering Email'):
-        rate = get_stars(p.score)
-        authors = [a.name for a in p.authors[:5]]
-        authors = ', '.join(authors)
-        if len(p.authors) > 5:
-            authors += ', ...'
-        if p.affiliations is not None:
-            affiliations = p.affiliations[:5]
-            affiliations = ', '.join(affiliations)
-            if len(p.affiliations) > 5:
-                affiliations += ', ...'
-        else:
-            affiliations = 'Unknown Affiliation'
-        parts.append(get_block_html(p.title, authors,rate,p.arxiv_id ,p.tldr, p.pdf_url, p.code_url, affiliations))
+    arxiv_papers = [p for p in papers if isinstance(p, ArxivPaper)]
+    medrxiv_papers = [p for p in papers if isinstance(p, MedrxivPaper)]
+    
+    html_parts = []
+    
+    if arxiv_papers:
+        html_parts.append("<h2 style='font-family: Arial, sans-serif; color: #333;'>arXiv Papers</h2>")
+        for p in tqdm(arxiv_papers, desc='Rendering arXiv Email'):
+            html_parts.append(_generate_paper_html(p))
 
-    content = '<br>' + '</br><br>'.join(parts) + '</br>'
+    if arxiv_papers and medrxiv_papers:
+        html_parts.append("<hr style='border: none; border-top: 1px solid #ddd; margin: 2em 0;'>")
+
+    if medrxiv_papers:
+        html_parts.append("<h2 style='font-family: Arial, sans-serif; color: #333;'>medRxiv Papers</h2>")
+        for p in tqdm(medrxiv_papers, desc='Rendering medRxiv Email'):
+            html_parts.append(_generate_paper_html(p))
+
+    content = ''.join(html_parts)
     return framework.replace('__CONTENT__', content)
+
 
 def send_email(sender:str, receiver:str, password:str,smtp_server:str,smtp_port:int, html:str,):
     def _format_addr(s):
@@ -146,10 +183,10 @@ def send_email(sender:str, receiver:str, password:str,smtp_server:str,smtp_port:
         return formataddr((Header(name, 'utf-8').encode(), addr))
 
     msg = MIMEText(html, 'html', 'utf-8')
-    msg['From'] = _format_addr('Github Action <%s>' % sender)
+    msg['From'] = _format_addr('Zotero Daily Papers <%s>' % sender)
     msg['To'] = _format_addr('You <%s>' % receiver)
     today = datetime.datetime.now().strftime('%Y/%m/%d')
-    msg['Subject'] = Header(f'Daily arXiv {today}', 'utf-8').encode()
+    msg['Subject'] = Header(f'Daily Paper Digest {today}', 'utf-8').encode()
 
     try:
         server = smtplib.SMTP(smtp_server, smtp_port)
