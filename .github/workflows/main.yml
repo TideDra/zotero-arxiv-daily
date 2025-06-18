@@ -2,7 +2,7 @@ name: Send emails daily
 on:
   workflow_dispatch:
   schedule:
-    - cron: '0 22 * * *'
+    - cron: '0 0 * * *'
 
 jobs:
   calculate-and-send:
@@ -10,9 +10,6 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v4
-        with:
-          repository: ${{ vars.REPOSITORY }}
-          ref: ${{ vars.REF }}
 
       - name: Setup uv
         uses: astral-sh/setup-uv@v3
@@ -26,16 +23,18 @@ jobs:
           ZOTERO_IGNORE: ${{ vars.ZOTERO_IGNORE }}
           SEND_EMPTY: ${{ vars.SEND_EMPTY }}
           ARXIV_QUERY: ${{ secrets.ARXIV_QUERY }}
+          BIORXIV_QUERY: ${{ secrets.BIORXIV_QUERY }}
           SMTP_SERVER: ${{ secrets.SMTP_SERVER }}
           SMTP_PORT: ${{ secrets.SMTP_PORT }}
           SENDER: ${{ secrets.SENDER }}
           RECEIVER: ${{ secrets.RECEIVER }}
           SENDER_PASSWORD: ${{ secrets.SENDER_PASSWORD }}
           MAX_PAPER_NUM: ${{ secrets.MAX_PAPER_NUM }}
+          MAX_BIORXIV_NUM: ${{ secrets.MAX_BIORXIV_NUM }}
           USE_LLM_API: ${{ secrets.USE_LLM_API }}
           OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
           OPENAI_API_BASE: ${{ secrets.OPENAI_API_BASE }}
           MODEL_NAME: ${{ secrets.MODEL_NAME }}
           LANGUAGE: ${{ vars.LANGUAGE }}
         run: |
-          uv run main.py
+          uv run biorxiv_demo.py

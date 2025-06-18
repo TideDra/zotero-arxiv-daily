@@ -59,12 +59,14 @@ Below are all the secrets you need to set. They are invisible to anyone includin
 | ZOTERO_ID | ✅ | str  | User ID of your Zotero account. **User ID is not your username, but a sequence of numbers**Get your ID from [here](https://www.zotero.org/settings/security). You can find it at the position shown in this [screenshot](https://github.com/TideDra/zotero-arxiv-daily/blob/main/assets/userid.png). | 12345678  |
 | ZOTERO_KEY | ✅ | str  | An Zotero API key with read access. Get a key from [here](https://www.zotero.org/settings/security).  | AB5tZ877P2j7Sm2Mragq041H   |
 | ARXIV_QUERY | ✅ | str  | The categories of target arxiv papers. Use `+` to concatenate multiple categories. The example retrieves papers about AI, CV, NLP, ML. Find the abbr of your research area from [here](https://arxiv.org/category_taxonomy).  | cs.AI+cs.CV+cs.LG+cs.CL |
+| BIORXIV_QUERY | ✅ | str  | The categories of target arxiv papers. Use `+` to concatenate multiple categories. The example retrieves papers about cell biology, neuroscience, biophysics. Find the abbr of your research area from [here](https://www.biorxiv.org/). Note to replace " " with "-"  | cell_biology+neuroscience |
 | SMTP_SERVER | ✅ | str | The SMTP server that sends the email. I recommend to utilize a seldom-used email for this. Ask your email provider (Gmail, QQ, Outlook, ...) for its SMTP server| smtp.qq.com |
 | SMTP_PORT | ✅ | int | The port of SMTP server. | 465 |
 | SENDER | ✅ | str | The email account of the SMTP server that sends you email. | abc@qq.com |
 | SENDER_PASSWORD | ✅ | str | The password of the sender account. Note that it's not necessarily the password for logging in the e-mail client, but the authentication code for SMTP service. Ask your email provider for this.   | abcdefghijklmn |
 | RECEIVER | ✅ | str | The e-mail address that receives the paper list. | abc@outlook.com |
 | MAX_PAPER_NUM | | int | The maximum number of the papers presented in the email. This value directly affects the execution time of this workflow, because it takes about 70s to generate TL;DR for one paper. `-1` means to present all the papers retrieved. | 50 |
+| MAX_BIORXIV_NUM| | int | Max number of biorxiv papers. | 50 |
 | SEND_EMPTY | | bool | Whether to send an empty email even if no new papers today. | False |
 | USE_LLM_API | | bool | Whether to use the LLM API in the cloud or to use local LLM. If set to `1`, the API is used. Else if set to `0`, the workflow will download and deploy an open-source LLM. Default to `0`. | 0 |
 | OPENAI_API_KEY | | str | API Key when using the API to access LLMs. You can get FREE API for using advanced open source LLMs in [SiliconFlow](https://cloud.siliconflow.cn/i/b3XhBRAm). | sk-xxx |
@@ -99,6 +101,10 @@ Supported by [uv](https://github.com/astral-sh/uv), this workflow can easily run
 # ...
 cd zotero-arxiv-daily
 uv run main.py
+```
+To run the demo that support biorxiv recommendation, you can run
+```bash
+uv run biorxiv_demo.py
 ```
 > [!IMPORTANT]
 > The workflow will download and run an LLM (Qwen2.5-3B, the file size of which is about 3G). Make sure your network and hardware can handle it.
