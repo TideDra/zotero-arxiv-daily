@@ -18,6 +18,8 @@ from llm import set_global_llm
 import feedparser
 from datetime import datetime, timedelta
 import requests
+from requests.adapters import HTTPAdapter
+from urllib3.util.retry import Retry
 
 def get_zotero_corpus(id:str,key:str) -> list[dict]:
     zot = zotero.Zotero(id, 'user', key)
@@ -76,7 +78,25 @@ def get_arxiv_paper(query:str, debug:bool=False) -> list[ArxivPaper]:
 
     return papers
 
-def get_biorxiv_paper(query:str, debug:bool=False) -> list[ArxivPaper]:
+def get_biorxiv_paper(query: str, debug: bool = False) -> list[BiorxivPaper]:
+    """
+    Retrieve papers from bioRxiv API.
+    
+    Args:
+        query: The search query/category
+        debug: Whether to run in debug mode
+        
+    Returns:
+        A list of BiorxivPaper objects
+        
+    Raises:
+        requests.RequestException: If the API request fails
+        ValueError: If the query is invalid
+    """
+    session = requests.Session()
+    retries = Retry(total=5, backoff_factor=0.1)
+    session.mount('https://', HTTPAdapter(max_retries=retries))
+    
     if not debug:
         today = datetime.now()
         yesterday = today - timedelta(days=1)
