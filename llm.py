@@ -3,11 +3,9 @@ from openai import OpenAI
 from loguru import logger
 from time import sleep
 
-GLOBAL_LLM = None
-
 class LLM:
-    def __init__(self, api_key: str = None, base_url: str = None, model: str = None,lang: str = "English"):
-        if api_key:
+    def __init__(self, use_llm_api: bool, api_key: str = None, base_url: str = None, model: str = None, lang: str = "English"):
+        if use_llm_api:
             self.llm = OpenAI(api_key=api_key, base_url=base_url)
         else:
             self.llm = Llama.from_pretrained(
@@ -36,13 +34,3 @@ class LLM:
         else:
             response = self.llm.create_chat_completion(messages=messages,temperature=0)
             return response["choices"][0]["message"]["content"]
-
-def set_global_llm(api_key: str = None, base_url: str = None, model: str = None, lang: str = "English"):
-    global GLOBAL_LLM
-    GLOBAL_LLM = LLM(api_key=api_key, base_url=base_url, model=model, lang=lang)
-
-def get_llm() -> LLM:
-    if GLOBAL_LLM is None:
-        logger.info("No global LLM found, creating a default one. Use `set_global_llm` to set a custom one.")
-        set_global_llm()
-    return GLOBAL_LLM
