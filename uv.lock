@@ -1209,7 +1209,7 @@ wheels = [
 
 [[package]]
 name = "zotero-arxiv-daily"
-version = "0.3.4"
+version = "0.3.5"
 source = { virtual = "." }
 dependencies = [
     { name = "arxiv" },
