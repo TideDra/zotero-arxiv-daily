@@ -65,7 +65,9 @@ class ArxivPaper:
         return repo_list['results'][0]['url']
     
     @cached_property
-    def tex(self) -> dict[str,str]:
+    def tex(self) -> dict[str,str]| None: 
+        if self._paper.pdf_url is None:  # 添加检查
+            return None
         with ExitStack() as stack:
             tmpdirname = stack.enter_context(TemporaryDirectory())
             # file = self._paper.download_source(dirpath=tmpdirname)
