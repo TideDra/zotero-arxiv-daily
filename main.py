@@ -153,7 +153,7 @@ if __name__ == '__main__':
         "--language",
         type=str,
         help="Language of TLDR",
-        default="English",
+        default="chinese",
     )
     parser.add_argument('--debug', action='store_true', help='Debug mode')
     args = parser.parse_args()
