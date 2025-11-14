@@ -8,7 +8,7 @@ import smtplib
 import datetime
 import time
 from loguru import logger
-
+from typing import List
 framework = """
 <!DOCTYPE HTML>
 <html>
@@ -155,7 +155,7 @@ def send_email(sender:str, receiver:str, password:str,smtp_server:str,smtp_port:
       """
       if not receiver_str:
           return []
-      # 支持 , ; 空格 任意组合
+      # support , ; <space> 
       return [r.strip() for r in receiver_str.replace(';', ',').split(',') if r.strip()]
 
     receivers = _split_receivers(receiver)
