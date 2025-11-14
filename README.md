@@ -63,7 +63,10 @@ Below are all the secrets you need to set. They are invisible to anyone includin
 | SMTP_PORT | ✅ | int | The port of SMTP server. | 465 |
 | SENDER | ✅ | str | The email account of the SMTP server that sends you email. | abc@qq.com |
 | SENDER_PASSWORD | ✅ | str | The password of the sender account. Note that it's not necessarily the password for logging in the e-mail client, but the authentication code for SMTP service. Ask your email provider for this.   | abcdefghijklmn |
-| RECEIVER | ✅ | str | The e-mail address that receives the paper list. | abc@outlook.com |
+| RECEIVER | Required | str | The email address(es) that receive the paper list.  
+Multiple addresses are supported and can be separated by **semicolons (`;`)**, **commas (`,`)**, or **spaces**.  
+All listed addresses will receive the same daily email.  
+Example: `abc@outlook.com;cde@qq.com 123@163.com,456@126.com` | abc@outlook.com;cde@qq.com 123@163.com,456@126.com |
 | MAX_PAPER_NUM | | int | The maximum number of the papers presented in the email. This value directly affects the execution time of this workflow, because it takes about 70s to generate TL;DR for one paper. `-1` means to present all the papers retrieved. | 50 |
 | SEND_EMPTY | | bool | Whether to send an empty email even if no new papers today. | False |
 | USE_LLM_API | | bool | Whether to use the LLM API in the cloud or to use local LLM. If set to `1`, the API is used. Else if set to `0`, the workflow will download and deploy an open-source LLM. Default to `0`. | 0 |
