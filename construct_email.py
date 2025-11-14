@@ -165,7 +165,7 @@ def send_email(sender:str, receiver:str, password:str,smtp_server:str,smtp_port:
 
     msg = MIMEText(html, 'html', 'utf-8')
     msg['From'] = _format_addr(f'Github Action <{sender}>')
-    today = datetime.now().strftime('%Y/%m/%d')
+    today = datetime.datetime.now().strftime('%Y/%m/%d')
     msg['Subject'] = Header(f'Daily arXiv {today}', 'utf-8').encode()
 
     msg['To'] = ', '.join(_format_addr(f'You <{r}>') for r in receivers)
