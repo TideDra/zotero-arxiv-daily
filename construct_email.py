@@ -149,21 +149,47 @@ def send_email(sender:str, receiver:str, password:str,smtp_server:str,smtp_port:
     def _format_addr(s):
         name, addr = parseaddr(s)
         return formataddr((Header(name, 'utf-8').encode(), addr))
+    def _split_receivers(receiver_str: str) -> List[str]:
+      """
+       "a@example.com, b@example.com; c@example.com" 
+      """
+      if not receiver_str:
+          return []
+      # 支持 , ; 空格 任意组合
+      return [r.strip() for r in receiver_str.replace(';', ',').split(',') if r.strip()]
+
+    receivers = _split_receivers(receiver)
+    if not receivers:
+        logger.warning("No valid receiver email addresses provided.")
+        return
 
     msg = MIMEText(html, 'html', 'utf-8')
-    msg['From'] = _format_addr('Github Action <%s>' % sender)
-    msg['To'] = _format_addr('You <%s>' % receiver)
-    today = datetime.datetime.now().strftime('%Y/%m/%d')
+    msg['From'] = _format_addr(f'Github Action <{sender}>')
+    today = datetime.now().strftime('%Y/%m/%d')
     msg['Subject'] = Header(f'Daily arXiv {today}', 'utf-8').encode()
 
-    try:
-        server = smtplib.SMTP(smtp_server, smtp_port)
-        server.starttls()
-    except Exception as e:
-        logger.warning(f"Failed to use TLS. {e}")
-        logger.warning(f"Try to use SSL.")
-        server = smtplib.SMTP_SSL(smtp_server, smtp_port)
+    msg['To'] = ', '.join(_format_addr(f'You <{r}>') for r in receivers)
 
-    server.login(sender, password)
-    server.sendmail(sender, [receiver], msg.as_string())
-    server.quit()
+    # ---------- SMTP ----------
+    try:
+        if smtp_port == 465:                     # QQ、Outlook 
+            server = smtplib.SMTP_SSL(smtp_server, smtp_port, timeout=15)
+            logger.debug("Using SMTP_SSL (port 465).")
+        else:                                    # 587、25 
+            server = smtplib.SMTP(smtp_server, smtp_port, timeout=15)
+            server.starttls()
+            logger.debug("Using SMTP + STARTTLS.")
+    except Exception as e:
+        logger.error(f"Failed to establish SMTP connection: {e}")
+        raise
+
+    # ---------- login & send ----------
+    try:
+        server.login(sender, password)
+        server.sendmail(sender, receivers, msg.as_string())
+        logger.info(f"Email sent successfully to: {', '.join(receivers)}")
+    except Exception as e:
+        logger.error(f"SMTP login/send failed: {e}")
+        raise
+    finally:
+        server.quit()
