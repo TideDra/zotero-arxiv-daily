@@ -1,4 +1,18 @@
 import arxiv
+
+def _get_pdf_url_patch(links) -> str:
+    """
+    Finds the PDF link among a result's links and returns its URL.
+    Should only be called once for a given `Result`, in its constructor.
+    After construction, the URL should be available in `Result.pdf_url`.
+    """
+    pdf_urls = [link.href for link in links if "pdf" in link.href]
+    if len(pdf_urls) == 0:
+        return None
+    return pdf_urls[0]
+
+arxiv.Result._get_pdf_url = _get_pdf_url_patch
+
 import argparse
 import os
 import sys
@@ -55,8 +69,8 @@ def get_arxiv_paper(query:str, debug:bool=False) -> list[ArxivPaper]:
         papers = []
         all_paper_ids = [i.id.removeprefix("oai:arXiv.org:") for i in feed.entries if i.arxiv_announce_type == 'new']
         bar = tqdm(total=len(all_paper_ids),desc="Retrieving Arxiv papers")
-        for i in range(0,len(all_paper_ids),50):
-            search = arxiv.Search(id_list=all_paper_ids[i:i+50])
+        for i in range(0,len(all_paper_ids),20):
+            search = arxiv.Search(id_list=all_paper_ids[i:i+20])
             batch = [ArxivPaper(p) for p in client.results(search)]
             bar.update(len(batch))
             papers.extend(batch)

@@ -38,7 +38,17 @@ class ArxivPaper:
     
     @property
     def pdf_url(self) -> str:
-        return self._paper.pdf_url
+        if self._paper.pdf_url is not None:
+            return self._paper.pdf_url
+        
+        pdf_url = f"https://arxiv.org/pdf/{self.arxiv_id}.pdf"
+        if self._paper.links is not None:
+            pdf_url = self._paper.links[0].href.replace('abs','pdf')
+
+        ## Assign pdf_url to self._paper.pdf_url for pdf downloading (Issue #119)
+        self._paper.pdf_url = pdf_url
+
+        return pdf_url
     
     @cached_property
     def code_url(self) -> Optional[str]:
@@ -82,6 +92,9 @@ class ArxivPaper:
                     # 如果是其他 HTTP 错误 (如 503)，这可能是临时性问题，值得记录下来
                     logger.error(f"HTTP Error {e.code} when downloading source for {self.arxiv_id}: {e.reason}")
                     raise # 重新抛出异常，因为这可能是个需要关注的严重问题
+            except Exception as e:
+                logger.error(f"Error when downloading source for {self.arxiv_id}: {e}")
+                return None
             try:
                 tar = stack.enter_context(tarfile.open(file))
             except tarfile.ReadError:
