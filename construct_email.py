@@ -118,12 +118,19 @@ def get_stars(score:float):
         return '<div class="star-wrapper">'+full_star * full_star_num + half_star * half_star_num + '</div>'
 
 
-def render_email(papers:list[ArxivPaper]):
+def render_email(papers:list[ArxivPaper], llm_instance: LLM):
     parts = []
     if len(papers) == 0 :
         return framework.replace('__CONTENT__', get_empty_html())
     
     for p in tqdm(papers,desc='Rendering Email'):
+        if p.tldr is None:
+            p.tldr = llm_instance.generate(
+                messages=[
+                    {"role": "system", "content": f"You are a helpful assistant. Please summarize the following paper into a TLDR in {llm_instance.lang}."},
+                    {"role": "user", "content": p.summary},
+                ]
+            )
         rate = get_stars(p.score)
         author_list = [a.name for a in p.authors]
         num_authors = len(author_list)
