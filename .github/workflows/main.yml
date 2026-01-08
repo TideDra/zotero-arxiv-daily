@@ -15,9 +15,7 @@ jobs:
           ref: ${{ vars.REF }}
 
       - name: Setup uv
-        uses: astral-sh/setup-uv@v3
-        with:
-          version: '0.5.4'
+        uses: astral-sh/setup-uv@v7
 
       - name: Run script
         env:
