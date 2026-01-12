@@ -167,7 +167,11 @@ class ArxivPaper:
         if self.tex is not None:
             content = self.tex.get("all")
             if content is None:
-                content = "\n".join(self.tex.values())
+                # content = "\n".join(self.tex.values())
+                content = "\n".join([str(v) for v in self.tex.values() if v is not None])
+                if not content.strip():
+                    logger.debug(f"No usable tex content for {self.arxiv_id} when building tldr.")
+
             #remove cite
             content = re.sub(r'~?\\cite.?\{.*?\}', '', content)
             #remove figure
@@ -218,7 +222,11 @@ class ArxivPaper:
         if self.tex is not None:
             content = self.tex.get("all")
             if content is None:
-                content = "\n".join(self.tex.values())
+                # content = "\n".join(self.tex.values())
+                content = "\n".join([str(v) for v in self.tex.values() if v is not None])
+                if not content.strip():
+                    logger.debug(f"Failed to extract affiliations of {self.arxiv_id}: tex content empty after filtering.")
+
             #search for affiliations
             possible_regions = [r'\\author.*?\\maketitle',r'\\begin{document}.*?\\begin{abstract}']
             matches = [re.search(p, content, flags=re.DOTALL) for p in possible_regions]
