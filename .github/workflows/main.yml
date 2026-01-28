@@ -36,4 +36,18 @@ jobs:
           MODEL_NAME: ${{ secrets.MODEL_NAME }}
           LANGUAGE: ${{ vars.LANGUAGE }}
         run: |
-          uv run main.py
+          MAX_RETRIES=3
+          WAIT_SECONDS=60
+          
+          count=0
+          until uv run main.py; do
+            exit_code=$?
+            count=$((count + 1))
+            if [ $count -ge $MAX_RETRIES ]; then
+              echo "Script failed after $count attempts."
+              exit $exit_code
+            fi
+            echo "Attempt $count failed! Retrying in $WAIT_SECONDS seconds..."
+            sleep $WAIT_SECONDS
+          done
+          echo "Script executed successfully."
