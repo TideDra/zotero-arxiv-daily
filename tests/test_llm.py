@@ -63,3 +63,10 @@ def test_affiliations(config,paper:Paper):
     openai_client = OpenAI(api_key=config.llm.api.key, base_url=config.llm.api.base_url)
     paper.generate_affiliations(openai_client, config.llm)
     assert paper.affiliations is not None
+    assert isinstance(paper.affiliations, list)
+    assert paper.has_top_university_author is not None
+
+def test_notable_corresponding_author(config,paper:Paper):
+    openai_client = OpenAI(api_key=config.llm.api.key, base_url=config.llm.api.base_url)
+    paper.generate_notable_corresponding_author(openai_client, config.llm)
+    assert paper.notable_corresponding_author is not None

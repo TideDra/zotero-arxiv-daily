@@ -5,7 +5,14 @@ app = FastAPI()
 @app.post("/v1/chat/completions")
 async def chat_completions(request:dict):
     request_str = str(request)
-    is_affiliation = "You are an assistant who perfectly extracts affiliations" in request_str
+    is_affiliation = "evaluates their institutional prestige" in request_str
+    is_notable_author = "evaluates the academic reputation" in request_str
+    if is_affiliation:
+        content = '{"affiliations": ["The Pennsylvania State University"], "first_author_institution": "The Pennsylvania State University", "is_qs_top100": false}'
+    elif is_notable_author:
+        content = '{"corresponding_author": "Abhronil Sengupta", "is_notable": false}'
+    else:
+        content = 'Hello! How can I assist you today?'
     return {'id': 'chatcmpl-CkUpDqPLWNJE4SZCoPsUbvf3RudrU',
  'created': 1765197615,
  'model': 'gpt-4o-mini-2024-07-18',
@@ -13,7 +20,7 @@ async def chat_completions(request:dict):
  'system_fingerprint': 'fp_efad92c60b',
  'choices': [{'finish_reason': 'stop',
    'index': 0,
-   'message': {'content': 'Hello! How can I assist you today?' if not is_affiliation else '["TsingHua University","Peking University"]',
+   'message': {'content': content,
     'role': 'assistant',
     'annotations': []},
    'provider_specific_fields': {'content_filter_results': {'hate': {'filtered': False,
