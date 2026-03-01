@@ -57,6 +57,31 @@ class Executor:
         return new_corpus
 
     
+    def _filter_by_author_quality(self, papers: list) -> list:
+        """Filter papers by author quality:
+        - First author should be from a QS top 100 university
+        - Corresponding author should be a notable researcher in the field
+        Papers are excluded only when a condition is explicitly False (not when unknown/None).
+        """
+        filtered = []
+        for p in papers:
+            is_top_uni = p.has_top_university_author
+            is_notable = p.notable_corresponding_author
+
+            if is_top_uni is False:
+                logger.info(f"Filtered out (first author not from QS top 100): {p.title}")
+                continue
+            if is_notable is False:
+                logger.info(f"Filtered out (corresponding author not notable): {p.title}")
+                continue
+            filtered.append(p)
+
+        logger.info(
+            f"Author quality filter: {len(papers)} -> {len(filtered)} papers "
+            f"({len(papers) - len(filtered)} removed)"
+        )
+        return filtered
+
     def run(self):
         corpus = self.fetch_zotero_corpus()
         corpus = self.filter_corpus(corpus)
@@ -78,10 +103,12 @@ class Executor:
             logger.info("Reranking papers...")
             reranked_papers = self.reranker.rerank(all_papers, corpus)
             reranked_papers = reranked_papers[:self.config.executor.max_paper_num]
-            logger.info("Generating TLDR and affiliations...")
+            logger.info("Generating TLDR, affiliations, and author quality checks...")
             for p in tqdm(reranked_papers):
                 p.generate_tldr(self.openai_client, self.config.llm)
                 p.generate_affiliations(self.openai_client, self.config.llm)
+                p.generate_notable_corresponding_author(self.openai_client, self.config.llm)
+            reranked_papers = self._filter_by_author_quality(reranked_papers)
         elif not self.config.executor.send_empty:
             logger.info("No new papers found. No email will be sent.")
             return
