@@ -17,6 +17,15 @@ jobs:
       - name: Setup uv
         uses: astral-sh/setup-uv@v7
 
+      - name: Check workspace
+        run: |
+          pwd
+          ls -la
+          if [ ! -f "main.py" ]; then
+            echo "::error::main.py not found in ${GITHUB_WORKSPACE}. Check vars.REPOSITORY and vars.REF."
+            exit 1
+          fi
+
       - name: Run script
         env:
           ZOTERO_ID: ${{ secrets.ZOTERO_ID }}
@@ -36,4 +45,4 @@ jobs:
           MODEL_NAME: ${{ secrets.MODEL_NAME }}
           LANGUAGE: ${{ vars.LANGUAGE }}
         run: |
-          uv run main.py
+          uv run python main.py

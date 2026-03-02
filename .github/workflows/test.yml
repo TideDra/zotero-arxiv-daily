@@ -13,9 +13,16 @@ jobs:
           ref: ${{ vars.REF }}
 
       - name: Setup uv
-        uses: astral-sh/setup-uv@v3
-        with:
-          version: '0.5.4'
+        uses: astral-sh/setup-uv@v7
+
+      - name: Check workspace
+        run: |
+          pwd
+          ls -la
+          if [ ! -f "main.py" ]; then
+            echo "::error::main.py not found in ${GITHUB_WORKSPACE}. Check vars.REPOSITORY and vars.REF."
+            exit 1
+          fi
 
       - name: Run script
         env:
@@ -36,4 +43,4 @@ jobs:
           MODEL_NAME: ${{ secrets.MODEL_NAME }}
           LANGUAGE: ${{ vars.LANGUAGE }}
         run: |
-          uv run main.py --debug
+          uv run python main.py --debug
