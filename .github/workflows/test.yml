@@ -9,20 +9,30 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
         with:
-          repository: ${{ vars.REPOSITORY }}
-          ref: ${{ vars.REF }}
+          repository: ${{ vars.REPOSITORY || github.repository }}
+          ref: ${{ vars.REF || github.ref_name }}
 
       - name: Setup uv
         uses: astral-sh/setup-uv@v7
 
-      - name: Check workspace
+      - name: Detect entrypoint
         run: |
           pwd
           ls -la
-          if [ ! -f "main.py" ]; then
-            echo "::error::main.py not found in ${GITHUB_WORKSPACE}. Check vars.REPOSITORY and vars.REF."
+          echo "Checkout repository: ${{ vars.REPOSITORY || github.repository }}"
+          echo "Checkout ref: ${{ vars.REF || github.ref_name }}"
+          if [ -f "main.py" ]; then
+            entrypoint="main.py"
+          elif [ -d "src" ]; then
+            entrypoint="$(find src -type f -name main.py | head -n 1)"
+          fi
+
+          if [ -z "${entrypoint}" ]; then
+            echo "::error::No entrypoint found. Expected main.py or src/**/main.py."
             exit 1
           fi
+          echo "Using entrypoint: ${entrypoint}"
+          echo "ENTRYPOINT=${entrypoint}" >> "${GITHUB_ENV}"
 
       - name: Run script
         env:
@@ -43,4 +53,4 @@ jobs:
           MODEL_NAME: ${{ secrets.MODEL_NAME }}
           LANGUAGE: ${{ vars.LANGUAGE }}
         run: |
-          uv run python main.py --debug
+          uv run python "${ENTRYPOINT}" --debug
