@@ -5,10 +5,10 @@ import numpy as np
 @register_reranker("local")
 class LocalReranker(BaseReranker):
     def get_similarity_score(self, s1: list[str], s2: list[str]) -> np.ndarray:
+        from sentence_transformers import SentenceTransformer
         if not self.config.executor.debug:
             from transformers.utils import logging as transformers_logging
             from huggingface_hub.utils import logging as hf_logging
-            from sentence_transformers import SentenceTransformer
     
             transformers_logging.set_verbosity_error()
             hf_logging.set_verbosity_error()
