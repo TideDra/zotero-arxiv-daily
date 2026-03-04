@@ -1,0 +1,49 @@
+zotero:
+  user_id: ??? # User ID of your Zotero account.
+  api_key: ??? # An Zotero API key with read access.
+  include_path: null # A glob pattern marking the Zotero collections that should be included. Example: "2026/survey/**"
+
+source:
+  arxiv:
+    category: null # The categories of target arxiv papers. Find the abbr of your research area from [here](https://arxiv.org/category_taxonomy). Example: ["cs.AI","cs.CV","cs.LG","cs.CL"]
+  biorxiv:
+    category: null # The categories of target biorxiv papers. Find categories from [here](https://www.biorxiv.org/). Example: ["biochemistry","animal behavior and cognition"]
+  medrxiv:
+    category: null # The categories of target medrxiv papers. Find categories from [here](https://www.medrxiv.org/) Example: ["psychiatry and clinical psychology", "neurology"]
+
+email:
+  sender: ??? # The email account of the SMTP server that sends you email. Example: abc@qq.com
+  receiver: ??? # The email account that receives the paper list. Example: abc@outlook.com
+  smtp_server: ??? # The SMTP server that sends the email. Ask your email provider (Gmail, QQ, Outlook, ...) for its SMTP server. Example: smtp.qq.com
+  smtp_port: ??? # The port of SMTP server. Example: 465
+  sender_password: ??? # The password of the sender account. Note that it's not necessarily the password for logging in the e-mail client, but the authentication code for SMTP service. Ask your email provider for this. Example: abcdefghijklmn
+
+llm:
+  api:
+    key: ??? # API Key of your LLM API. Example: sk-xxx
+    base_url: ??? # API URL of your LLM API. Example: https://api.openai.com/v1
+  generation_kwargs:
+  # Arguments for the LLM API. See [here](https://platform.openai.com/docs/api-reference/chat/create) for more details.
+    max_tokens: 16384
+    model: ???
+  language: English # Preferred language for the TL;DR. Example: English
+
+reranker:
+  local:
+    model: jinaai/jina-embeddings-v5-text-nano # The Hugging Face model name of the local embedding model. Example: jinaai/jina-embeddings-v5-text-nano
+    encode_kwargs:
+    # The kwargs for the encode method of the local embedding model. Details see [here](https://www.sbert.net/docs/package_reference/SentenceTransformer.html#sentence_transformers.SentenceTransformer.encode)
+      task: retrieval
+      prompt_name: document
+  api:
+    key: null # API Key of your embedding model API. Example: sk-xxx
+    base_url: null # API URL of your embedding model API. Example: https://api.openai.com/v1
+    model: null # The model name of the embedding model. Example: text-embedding-3-large
+
+executor:
+  debug: false # Whether to use debug mode. Example: true
+  send_empty: false # Whether to send an empty email even if no new papers today. Example: true
+  max_workers: 10 # Concurrent workers for processing papers. Example: 10
+  max_paper_num: 100 # The maximum number of the papers presented in the email. Example: 100
+  source: ??? # The sources of papers to retrieve. Example: ['arxiv','biorxiv','medrxiv']
+  reranker: local # The reranker to use. Example: 'local' or 'api'
