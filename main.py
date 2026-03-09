@@ -16,6 +16,7 @@ arxiv.Result._get_pdf_url = _get_pdf_url_patch
 import argparse
 import os
 import sys
+import re
 from dotenv import load_dotenv
 load_dotenv(override=True)
 os.environ["TOKENIZERS_PARALLELISM"] = "false"
@@ -28,7 +29,18 @@ from gitignore_parser import parse_gitignore
 from tempfile import mkstemp
 from paper import ArxivPaper
 from llm import set_global_llm
-import feedparser
+
+
+def build_arxiv_api_query(query: str) -> str:
+    categories = [category.strip() for category in query.split('+') if category.strip()]
+    if not categories:
+        raise Exception("Invalid ARXIV_QUERY: empty query.")
+
+    invalid_categories = [category for category in categories if not re.fullmatch(r"[A-Za-z0-9.\-]+", category)]
+    if invalid_categories:
+        raise Exception(f"Invalid ARXIV_QUERY: unsupported category name(s): {', '.join(invalid_categories)}.")
+
+    return " OR ".join(f"cat:{category}" for category in categories)
 
 def get_zotero_corpus(id:str,key:str) -> list[dict]:
     zot = zotero.Zotero(id, 'user', key)
@@ -61,20 +73,39 @@ def filter_corpus(corpus:list[dict], pattern:str) -> list[dict]:
 
 
 def get_arxiv_paper(query:str, debug:bool=False) -> list[ArxivPaper]:
-    client = arxiv.Client(num_retries=10,delay_seconds=10)
-    feed = feedparser.parse(f"https://rss.arxiv.org/atom/{query}")
-    if 'Feed error for query' in feed.feed.title:
-        raise Exception(f"Invalid ARXIV_QUERY: {query}.")
+    client = arxiv.Client(page_size=100, num_retries=10, delay_seconds=10)
     if not debug:
+        search = arxiv.Search(
+            query=build_arxiv_api_query(query),
+            max_results=1000,
+            sort_by=arxiv.SortCriterion.SubmittedDate,
+            sort_order=arxiv.SortOrder.Descending,
+        )
         papers = []
-        all_paper_ids = [i.id.removeprefix("oai:arXiv.org:") for i in feed.entries if i.arxiv_announce_type == 'new']
-        bar = tqdm(total=len(all_paper_ids),desc="Retrieving Arxiv papers")
-        for i in range(0,len(all_paper_ids),20):
-            search = arxiv.Search(id_list=all_paper_ids[i:i+20])
-            batch = [ArxivPaper(p) for p in client.results(search)]
-            bar.update(len(batch))
-            papers.extend(batch)
-        bar.close()
+        seen_ids = set()
+        latest_batch_date = None
+        for result in tqdm(client.results(search), desc="Retrieving Arxiv papers"):
+            published = getattr(result, "published", None)
+            if published is None:
+                continue
+
+            if latest_batch_date is None:
+                latest_batch_date = published.date()
+                logger.info(f"Latest arXiv batch date: {latest_batch_date}")
+
+            if published.date() != latest_batch_date:
+                break
+
+            paper = ArxivPaper(result)
+            if paper.arxiv_id in seen_ids:
+                continue
+            seen_ids.add(paper.arxiv_id)
+            papers.append(paper)
+
+        if latest_batch_date is None:
+            logger.warning(f"arXiv API returned no results for query: {query}")
+        else:
+            logger.info(f"Retrieved {len(papers)} papers from the latest arXiv batch.")
 
     else:
         logger.debug("Retrieve 5 arxiv papers regardless of the date.")
@@ -197,4 +228,3 @@ if __name__ == '__main__':
     logger.info("Sending email...")
     send_email(args.sender, args.receiver, args.sender_password, args.smtp_server, args.smtp_port, html)
     logger.success("Email sent successfully! If you don't receive the email, please check the configuration and the junk box.")
-
