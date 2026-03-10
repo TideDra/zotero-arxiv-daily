@@ -39,52 +39,50 @@ class ArxivRetriever(BaseRetriever):
         return raw_papers
 
     def convert_to_paper(self, raw_paper:ArxivResult) -> Paper:
-        title = raw_paper.title
-        authors = [a.name for a in raw_paper.authors]
-        abstract = raw_paper.summary
-        pdf_url = raw_paper.pdf_url
-        full_text = extract_text_from_pdf(raw_paper)
-        if full_text is None:
-            full_text = extract_text_from_tar(raw_paper)
         return Paper(
             source=self.name,
-            title=title,
-            authors=authors,
-            abstract=abstract,
+            title=raw_paper.title,
+            authors=[a.name for a in raw_paper.authors],
+            abstract=raw_paper.summary,
             url=raw_paper.entry_id,
-            pdf_url=pdf_url,
-            full_text=full_text
+            pdf_url=raw_paper.pdf_url,
+            full_text=None  # deferred: fetched after reranking via fetch_full_text()
         )
 
-def extract_text_from_pdf(paper: ArxivResult) -> str | None:
+    def fetch_full_text(self, paper: Paper) -> None:
+        source_url = paper.url.replace("http://arxiv.org/abs/", "https://arxiv.org/e-print/")
+        full_text = extract_text_from_pdf(paper.pdf_url, paper.title)
+        if full_text is None:
+            full_text = extract_text_from_tar(source_url, paper.url, paper.title)
+        paper.full_text = full_text
+
+
+def extract_text_from_pdf(pdf_url: str | None, title: str = "") -> str | None:
+    if pdf_url is None:
+        logger.warning(f"No PDF URL available for {title}")
+        return None
     with TemporaryDirectory() as temp_dir:
         path = os.path.join(temp_dir, "paper.pdf")
-        if paper.pdf_url is None:
-            logger.warning(f"No PDF URL available for {paper.title}")
-            return None
-        urlretrieve(paper.pdf_url, path)
+        urlretrieve(pdf_url, path)
         try:
             full_text = extract_markdown_from_pdf(path)
         except Exception as e:
-            logger.warning(f"Failed to extract full text of {paper.title} from pdf: {e}")
+            logger.warning(f"Failed to extract full text of {title} from pdf: {e}")
             full_text = None
         return full_text
 
-def extract_text_from_tar(paper: ArxivResult) -> str | None:
+
+def extract_text_from_tar(source_url: str, entry_id: str, title: str = "") -> str | None:
     with TemporaryDirectory() as temp_dir:
         path = os.path.join(temp_dir, "paper.tar.gz")
-        source_url = paper.source_url()
-        if source_url is None:
-            logger.warning(f"No source URL available for {paper.title}")
-            return None
         urlretrieve(source_url, path)
         try:
-            file_contents = extract_tex_code_from_tar(path, paper.entry_id)
+            file_contents = extract_tex_code_from_tar(path, entry_id)
             if "all" not in file_contents:
-                logger.warning(f"Failed to extract full text of {paper.title} from tar: Main tex file not found.")
+                logger.warning(f"Failed to extract full text of {title} from tar: Main tex file not found.")
                 return None
             full_text = file_contents["all"]
         except Exception as e:
-            logger.warning(f"Failed to extract full text of {paper.title} from tar: {e}")
+            logger.warning(f"Failed to extract full text of {title} from tar: {e}")
             full_text = None
         return full_text

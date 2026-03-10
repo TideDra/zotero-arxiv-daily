@@ -11,6 +11,7 @@ from .construct_email import render_email
 from .utils import send_email
 from openai import OpenAI
 from tqdm import tqdm
+
 class Executor:
     def __init__(self, config:DictConfig):
         self.config = config
@@ -78,6 +79,11 @@ class Executor:
             logger.info("Reranking papers...")
             reranked_papers = self.reranker.rerank(all_papers, corpus)
             reranked_papers = reranked_papers[:self.config.executor.max_paper_num]
+            logger.info("Fetching full text...")
+            for paper in tqdm(reranked_papers):
+                fetch_full_text = getattr(self.retrievers.get(paper.source), "fetch_full_text", None)
+                if fetch_full_text is not None:
+                    fetch_full_text(paper)
             logger.info("Generating TLDR and affiliations...")
             for p in tqdm(reranked_papers):
                 p.generate_tldr(self.openai_client, self.config.llm)
