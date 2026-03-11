@@ -11,6 +11,8 @@ from .construct_email import render_email
 from .utils import send_email
 from openai import OpenAI
 from tqdm import tqdm
+from omegaconf import ListConfig
+
 class Executor:
     def __init__(self, config:DictConfig):
         self.config = config
@@ -42,15 +44,20 @@ class Executor:
             paths=c['paths']
         ) for c in corpus]
     
-    def filter_corpus(self, corpus:list[CorpusPaper]) -> list[CorpusPaper]:
-        if not self.config.zotero.include_path:
+    def filter_corpus(self, corpus: list[CorpusPaper]) -> list[CorpusPaper]:
+        include = self.config.zotero.include_path
+        if not include:
             return corpus
+
+        patterns = list(include) if isinstance(include, (list, ListConfig)) else [include]
+
         new_corpus = []
-        logger.info(f"Selecting zotero papers matching include_path: {self.config.zotero.include_path}")
+        logger.info(f"Selecting zotero papers matching include_path: {patterns}")
+
         for c in corpus:
-            match_results = [glob_match(p, self.config.zotero.include_path) for p in c.paths]
-            if any(match_results):
+            if any(glob_match(p, pat) for p in c.paths for pat in patterns):
                 new_corpus.append(c)
+
         samples = random.sample(new_corpus, min(5, len(new_corpus)))
         samples = '\n'.join([c.title + ' - ' + '\n'.join(c.paths) for c in samples])
         logger.info(f"Selected {len(new_corpus)} zotero papers:\n{samples}\n...")
