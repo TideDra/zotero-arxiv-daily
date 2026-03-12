@@ -65,6 +65,8 @@ Below are all the secrets you need to set. They are invisible to anyone includin
 | SENDER | The email account of the SMTP server that sends you email. | abc@qq.com |
 | SENDER_PASSWORD | The password of the sender account. Note that it's not necessarily the password for logging in the e-mail client, but the authentication code for SMTP service. Ask your email provider for this.   | abcdefghijklmn |
 | RECEIVER | The e-mail address that receives the paper list. | abc@outlook.com |
+| SMTP_SERVER | (Optional) The SMTP server address. If not set in secrets, you must hardcode it in CUSTOM_CONFIG. | smtp.qq.com |
+| SMTP_PORT | (Optional) The SMTP server port. If not set in secrets, you must hardcode it in CUSTOM_CONFIG. | 465 |
 | OPENAI_API_KEY | API Key when using the API to access LLMs. You can get FREE API for using advanced open source LLMs in [SiliconFlow](https://cloud.siliconflow.cn/i/b3XhBRAm). | sk-xxx |
 | OPENAI_API_BASE | API URL when using the API to access LLMs. | https://api.siliconflow.cn/v1 |
 
@@ -81,8 +83,8 @@ zotero:
 email:
   sender: ${oc.env:SENDER}
   receiver: ${oc.env:RECEIVER}
-  smtp_server: smtp.qq.com
-  smtp_port: 465
+  smtp_server: smtp.qq.com  # Change this to your SMTP server, or use ${oc.env:SMTP_SERVER} if you set it as a secret
+  smtp_port: 465  # Change this to your SMTP port, or use ${oc.env:SMTP_PORT} if you set it as a secret
   sender_password: ${oc.env:SENDER_PASSWORD}
 
 llm:
