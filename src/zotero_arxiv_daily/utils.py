@@ -8,9 +8,13 @@ from email.utils import parseaddr, formataddr
 from loguru import logger
 import datetime
 from omegaconf import DictConfig
+import pymupdf
 import pymupdf.layout
+pymupdf.TOOLS.mupdf_display_errors(False)
 pymupdf.layout.activate()
-import pymupdf4llm
+
+import pymupdf4llm  # noqa: E402
+
 def extract_tex_code_from_tar(file_path:str, paper_id:str) -> dict[str,str]:
     try:
         tar = tarfile.open(file_path)

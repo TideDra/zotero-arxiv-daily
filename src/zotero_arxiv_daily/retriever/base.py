@@ -1,7 +1,8 @@
 from abc import ABC, abstractmethod
 from omegaconf import DictConfig
 from ..protocol import Paper, RawPaperItem
-from concurrent.futures import ProcessPoolExecutor
+from concurrent.futures import ProcessPoolExecutor, as_completed
+from tqdm import tqdm
 from typing import Type
 from loguru import logger
 class BaseRetriever(ABC):
@@ -23,7 +24,10 @@ class BaseRetriever(ABC):
         papers = []
         logger.info("Processing papers...")
         with ProcessPoolExecutor(max_workers=self.config.executor.max_workers) as exec_pool:
-            papers = list(exec_pool.map(self.convert_to_paper, raw_papers))
+            futures = {exec_pool.submit(self.convert_to_paper, rp): i for i, rp in enumerate(raw_papers)}
+            papers = [None] * len(raw_papers)
+            for future in tqdm(as_completed(futures), total=len(raw_papers), desc="Converting papers"):
+                papers[futures[future]] = future.result()
         return [p for p in papers if p is not None]
 
 registered_retrievers = {}

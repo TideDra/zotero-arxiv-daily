@@ -4,11 +4,14 @@ from arxiv import Result as ArxivResult
 from ..protocol import Paper
 from ..utils import extract_markdown_from_pdf, extract_tex_code_from_tar
 from tempfile import TemporaryDirectory
+from concurrent.futures import ThreadPoolExecutor, TimeoutError
 import feedparser
 from urllib.request import urlretrieve
 from tqdm import tqdm
 import os
 from loguru import logger
+
+PDF_EXTRACT_TIMEOUT = 180
 @register_retriever("arxiv")
 class ArxivRetriever(BaseRetriever):
     def __init__(self, config):
@@ -43,7 +46,12 @@ class ArxivRetriever(BaseRetriever):
         authors = [a.name for a in raw_paper.authors]
         abstract = raw_paper.summary
         pdf_url = raw_paper.pdf_url
-        full_text = extract_text_from_pdf(raw_paper)
+        try:
+            with ThreadPoolExecutor(max_workers=1) as pool:
+                full_text = pool.submit(extract_text_from_pdf, raw_paper).result(timeout=PDF_EXTRACT_TIMEOUT)
+        except TimeoutError:
+            logger.warning(f"PDF extraction timed out for {raw_paper.title}")
+            full_text = None
         if full_text is None:
             full_text = extract_text_from_tar(raw_paper)
         return Paper(
