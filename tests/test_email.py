@@ -23,5 +23,6 @@ def test_render_email(papers:list[Paper]):
     email_content = render_email(papers)
     assert email_content is not None
 
+@pytest.mark.ci
 def test_send_email(config,papers:list[Paper]):
     send_email(config, render_email(papers))
