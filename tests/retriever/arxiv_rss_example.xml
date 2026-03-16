@@ -1,0 +1,69 @@
+<?xml version='1.0' encoding='UTF-8'?>
+<feed xmlns:arxiv="http://arxiv.org/schemas/atom" xmlns:dc="http://purl.org/dc/elements/1.1/" xmlns="http://www.w3.org/2005/Atom" xml:lang="en-us">
+  <id>http://rss.arxiv.org/atom/cs.AI</id>
+  <title>cs.AI updates on arXiv.org</title>
+  <updated>2025-08-20T04:00:19.866337+00:00</updated>
+  <link href="http://rss.arxiv.org/atom/cs.AI" rel="self" type="application/atom+xml"/>
+  <subtitle>cs.AI updates on the arXiv.org e-print archive.</subtitle>
+  <entry>
+    <id>oai:arXiv.org:2508.13426v1</id>
+    <title>ALIGN: Word Association Learning for Cross-Cultural Generalization in Large Language Models</title>
+    <updated>2025-08-20T04:00:19.899254+00:00</updated>
+    <link href="https://arxiv.org/abs/2508.13426" rel="alternate" type="text/html"/>
+    <summary>arXiv:2508.13426v1 Announce Type: cross 
+Abstract: As large language models (LLMs) increasingly mediate cross-cultural communication, their behavior still reflects the distributional bias of the languages and viewpoints that are over-represented in their pre-training corpora. Yet, it remains a challenge to model and align culture due to limited cultural knowledge and a lack of exploration into effective learning approaches. We introduce a cost-efficient, cognitively grounded remedy: parameter-efficient fine-tuning on native speakers' free word-association norms, which encode implicit cultural schemas. Leveraging English-US and Mandarin associations from the Small-World-of-Words project, we adapt Llama-3.1-8B and Qwen-2.5-7B via supervised fine-tuning (SFT) and PPO-based preference optimization. SFT boosts held-out association Precision at 5 by 16-20% in English and 43-165% in Mandarin, lifts median concreteness by +0.20, and attains human-level valence and arousal. These lexical gains transfer: on World-Values-Survey questions, fine-tuned models shift answer distributions toward the target culture, and on a 50-item high-tension subset, Qwen's Chinese-aligned responses double while Llama's US bias drops by one-third. Our 7-8B models rival or beat vanilla 70B baselines, showing that a few million culture-grounded associations can instill value alignment without costly retraining. Our work highlights both the promise and the need for future research grounded in human cognition in improving cultural alignment in AI models.</summary>
+    <category term="cs.CL"/>
+    <category term="cs.AI"/>
+    <published>2025-08-20T00:00:00-04:00</published>
+    <arxiv:announce_type>cross</arxiv:announce_type>
+    <dc:rights>http://creativecommons.org/licenses/by-nc-sa/4.0/</dc:rights>
+    <dc:creator>Chunhua Liu, Kabir Manandhar Shrestha, Sukai Huang</dc:creator>
+  </entry>
+  <entry>
+    <id>oai:arXiv.org:2508.13428v1</id>
+    <title>Mitigating Easy Option Bias in Multiple-Choice Question Answering</title>
+    <updated>2025-08-20T04:00:19.899197+00:00</updated>
+    <link href="https://arxiv.org/abs/2508.13428" rel="alternate" type="text/html"/>
+    <summary>arXiv:2508.13428v1 Announce Type: cross 
+Abstract: In this early study, we observe an Easy-Options Bias (EOB) issue in some multiple-choice Visual Question Answering (VQA) benchmarks such as MMStar, RealWorldQA, SEED-Bench, Next-QA, STAR benchmark and Video-MME. This bias allows vision-language models (VLMs) to select the correct answer using only the vision (V) and options (O) as inputs, without the need for the question (Q). Through grounding experiments, we attribute the bias to an imbalance in visual relevance: the correct answer typically aligns more closely with the visual contents than the negative options in feature space, creating a shortcut for VLMs to infer the answer via simply vision-option similarity matching. To fix this, we introduce GroundAttack, a toolkit that automatically generates hard negative options as visually plausible as the correct answer. We apply it to the NExT-QA and MMStar datasets, creating new EOB-free annotations. On these EOB-free annotations, current VLMs approach to random accuracies under (V+O) settings, and drop to non-saturated accuracies under (V+Q+O) settings, providing a more realistic evaluation of VLMs' QA ability. Codes and new annotations will be released soon.</summary>
+    <category term="cs.CV"/>
+    <category term="cs.AI"/>
+    <category term="cs.MM"/>
+    <published>2025-08-20T00:00:00-04:00</published>
+    <arxiv:announce_type>cross</arxiv:announce_type>
+    <dc:rights>http://creativecommons.org/licenses/by/4.0/</dc:rights>
+    <dc:creator>Hao Zhang, Chen Li, Basura Fernando</dc:creator>
+  </entry>
+  <entry>
+    <id>oai:arXiv.org:2508.13429v1</id>
+    <title>AlphaX: An AI-Based Value Investing Strategy for the Brazilian Stock Market</title>
+    <updated>2025-08-20T04:00:19.899141+00:00</updated>
+    <link href="https://arxiv.org/abs/2508.13429" rel="alternate" type="text/html"/>
+    <summary>arXiv:2508.13429v1 Announce Type: cross 
+Abstract: Autonomous trading strategies have been a subject of research within the field of artificial intelligence (AI) for aconsiderable period. Various AI techniques have been explored to develop autonomous agents capable of trading financial assets. These approaches encompass traditional methods such as neural networks, fuzzy logic, and reinforcement learning, as well as more recent advancements, including deep neural networks and deep reinforcement learning. Many developers report success in creating strategies that exhibit strong performance during simulations using historical price data, a process commonly referred to as backtesting. However, when these strategies are deployed in real markets, their performance often deteriorates, particularly in terms of risk-adjusted returns. In this study, we propose an AI-based strategy inspired by a classical investment paradigm: Value Investing. Financial AI models are highly susceptible to lookahead bias and other forms of bias that can significantly inflate performance in backtesting compared to live trading conditions. To address this issue, we conducted a series of computational simulations while controlling for these biases, thereby reducing the risk of overfitting. Our results indicate that the proposed approach outperforms major Brazilian market benchmarks. Moreover, the strategy, named AlphaX, demonstrated superior performance relative to widely used technical indicators such as the Relative Strength Index (RSI) and Money Flow Index (MFI), with statistically significant results. Finally, we discuss several open challenges and highlight emerging technologies in qualitative analysis that may contribute to the development of a comprehensive AI-based Value Investing framework in the future</summary>
+    <category term="q-fin.CP"/>
+    <category term="cs.AI"/>
+    <published>2025-08-20T00:00:00-04:00</published>
+    <arxiv:announce_type>cross</arxiv:announce_type>
+    <dc:rights>http://creativecommons.org/licenses/by/4.0/</dc:rights>
+    <dc:creator>Paulo Andr\'e Lima de Castro</dc:creator>
+  </entry>
+  <entry>
+    <id>oai:arXiv.org:2508.13434v1</id>
+    <title>EventTSF: Event-Aware Non-Stationary Time Series Forecasting</title>
+    <updated>2025-08-20T04:00:19.899079+00:00</updated>
+    <link href="https://arxiv.org/abs/2508.13434" rel="alternate" type="text/html"/>
+    <summary>arXiv:2508.13434v1 Announce Type: cross 
+Abstract: Time series forecasting plays a vital role in critical domains like energy and transportation, where non-stationary dynamics are deeply intertwined with events in other modalities such as texts. However, incorporating natural language-based external events to improve non-stationary forecasting remains largely unexplored, as most approaches still rely on a single modality, resulting in limited contextual knowledge and model underperformance. Enabling fine-grained multimodal interactions between temporal and textual data is challenged by three fundamental issues: (1) the difficulty of fine-grained synchronization between time-varying discrete textual events and continuous time series; (2) the inherent temporal uncertainty introduced by textual semantics; and (3) the misalignment between textual event embeddings and multi-resolution temporal patterns. In this work, we address these challenges by introducing event-aware non-stationary time series forecasting (EventTSF), an autoregressive generation framework that integrates historical time series with textual events to make subsequent forecasts. Specifically, EventTSF uses autoregressive diffusion with flow matching at each step to capture nuanced temporal-event interactions. To handle event-induced uncertainty, flow matching timesteps are adaptively controlled according to event semantic signals. The underlying denoiser employs a multimodal U-shaped diffusion transformer that efficiently fuses temporal and textual modalities across different resolutions. Extensive experiments on 8 synthetic and real-world datasets show that EventTSF outperforms 12 baselines across diverse event-aware non-stationary time series forecasting scenarios, achieving substantial improvements of 10.7% higher forecasting accuracy and $1.13\times$ faster training efficiency.</summary>
+    <category term="cs.LG"/>
+    <category term="cs.AI"/>
+    <published>2025-08-20T00:00:00-04:00</published>
+    <arxiv:announce_type>cross</arxiv:announce_type>
+    <dc:rights>http://creativecommons.org/licenses/by/4.0/</dc:rights>
+    <dc:creator>Yunfeng Ge, Ming Jin, Yiji Zhao, Hongyan Li, Bo Du, Chang Xu, Shirui Pan</dc:creator>
+  </entry>
+  <entry>
+    <id>oai:arXiv.org:2508.13435v1</id>
+    <title>SVDformer: Direction-Aware Spectral Graph Embedding Learning via SVD and Transformer</title>
+    <updated>2025-08-20T04:00:19.899011+00:00</updated>
+    <link href="https://arxiv.org/abs/2508.13435" rel="alternate" type="text/html"/>
