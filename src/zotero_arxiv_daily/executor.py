@@ -1,6 +1,6 @@
 from loguru import logger
 from pyzotero import zotero
-from omegaconf import DictConfig
+from omegaconf import DictConfig, ListConfig
 from .utils import glob_match
 from .retriever import get_retriever_cls
 from .protocol import CorpusPaper
@@ -11,9 +11,28 @@ from .construct_email import render_email
 from .utils import send_email
 from openai import OpenAI
 from tqdm import tqdm
+
+
+def normalize_include_path_patterns(include_path: list[str] | ListConfig | None) -> list[str] | None:
+    if include_path is None:
+        return None
+
+    if not isinstance(include_path, (list, ListConfig)):
+        raise TypeError(
+            "config.zotero.include_path must be a list of glob patterns or null, "
+            'for example ["2026/survey/**"]. Single strings are not supported.'
+        )
+
+    if any(not isinstance(pattern, str) for pattern in include_path):
+        raise TypeError("config.zotero.include_path must contain only glob pattern strings.")
+
+    return list(include_path)
+
+
 class Executor:
     def __init__(self, config:DictConfig):
         self.config = config
+        self.include_path_patterns = normalize_include_path_patterns(config.zotero.include_path)
         self.retrievers = {
             source: get_retriever_cls(source)(config) for source in config.executor.source
         }
@@ -43,12 +62,16 @@ class Executor:
         ) for c in corpus]
     
     def filter_corpus(self, corpus:list[CorpusPaper]) -> list[CorpusPaper]:
-        if not self.config.zotero.include_path:
+        if not self.include_path_patterns:
             return corpus
         new_corpus = []
-        logger.info(f"Selecting zotero papers matching include_path: {self.config.zotero.include_path}")
+        logger.info(f"Selecting zotero papers matching include_path: {self.include_path_patterns}")
         for c in corpus:
-            match_results = [glob_match(p, self.config.zotero.include_path) for p in c.paths]
+            match_results = [
+                glob_match(path, pattern)
+                for path in c.paths
+                for pattern in self.include_path_patterns
+            ]
             if any(match_results):
                 new_corpus.append(c)
         samples = random.sample(new_corpus, min(5, len(new_corpus)))
