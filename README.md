@@ -39,7 +39,7 @@
 - List of papers sorted by relevance with your recent research interest.
 - Fast deployment via fork this repo and set environment variables in the Github Action Page.
 - Support LLM API for generating TL;DR of papers.
-- Ignore unwanted Zotero papers using glob pattern.
+- Ignore unwanted Zotero papers using a list of glob patterns.
 - Support multiple sources of papers to retrieve:
   - arxiv
   - biorxiv
@@ -76,7 +76,7 @@ Paste the following content into the value of `CUSTOM_CONFIG` variable:
 zotero:
   user_id: ${oc.env:ZOTERO_ID}
   api_key: ${oc.env:ZOTERO_KEY}
-  include_path: null
+  include_path: null # Or e.g. ["2026/survey/**", "2026/reading-group/**"]
 
 email:
   sender: ${oc.env:SENDER}
@@ -110,7 +110,7 @@ Here is the full configuration, `???` means the value must be filled in:
 zotero:
   user_id: ??? # User ID of your Zotero account.
   api_key: ??? # An Zotero API key with read access.
-  include_path: null # A glob pattern marking the Zotero collections that should be included. Example: "2026/survey/**"
+  include_path: null # A list of glob patterns marking the Zotero collections that should be included. Example: ["2026/survey/**", "2026/reading-group/**"]
 
 source:
   arxiv:
