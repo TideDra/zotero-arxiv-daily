@@ -1,5 +1,16 @@
-from .protocol import Paper
 import math
+from html import escape
+
+from .protocol import Paper
+from .topic_clusterer import PaperGroup
+
+
+GROUP_WRAPPER_STYLE = "margin: 0 0 32px 0;"
+GROUP_HEADING_STYLE = "font-family: Arial, sans-serif; font-size: 24px; font-weight: bold; color: #222; margin: 0 0 8px 0;"
+GROUP_SUMMARY_STYLE = "font-family: Arial, sans-serif; font-size: 14px; color: #555; margin: 0 0 16px 0; line-height: 1.5;"
+PAPER_SPACING = '<br></br><br>'
+
+
 
 
 framework = """
@@ -104,28 +115,52 @@ def get_stars(score:float):
         return '<div class="star-wrapper">'+full_star * full_star_num + half_star * half_star_num + '</div>'
 
 
-def render_email(papers:list[Paper]) -> str:
-    parts = []
-    if len(papers) == 0 :
-        return framework.replace('__CONTENT__', get_empty_html())
-    
-    for p in papers:
-        #rate = get_stars(p.score)
-        rate = round(p.score, 1) if p.score is not None else 'Unknown'
-        author_list = [a for a in p.authors]
-        num_authors = len(author_list)
-        if num_authors <= 5:
-            authors = ', '.join(author_list)
-        else:
-            authors = ', '.join(author_list[:3] + ['...'] + author_list[-2:])
-        if p.affiliations is not None:
-            affiliations = p.affiliations[:5]
-            affiliations = ', '.join(affiliations)
-            if len(p.affiliations) > 5:
-                affiliations += ', ...'
-        else:
-            affiliations = 'Unknown Affiliation'
-        parts.append(get_block_html(p.title, authors, rate, p.tldr, p.pdf_url, affiliations))
+def _render_paper_html(paper: Paper) -> str:
+    rate = round(paper.score, 1) if paper.score is not None else 'Unknown'
+    author_list = [author for author in paper.authors]
+    num_authors = len(author_list)
+    if num_authors <= 5:
+        authors = ', '.join(author_list)
+    else:
+        authors = ', '.join(author_list[:3] + ['...'] + author_list[-2:])
+    if paper.affiliations is not None:
+        affiliations = paper.affiliations[:5]
+        affiliations = ', '.join(affiliations)
+        if len(paper.affiliations) > 5:
+            affiliations += ', ...'
+    else:
+        affiliations = 'Unknown Affiliation'
+    return get_block_html(
+        escape(paper.title),
+        escape(authors),
+        rate,
+        escape(paper.tldr or ''),
+        escape(paper.pdf_url),
+        escape(affiliations),
+    )
 
-    content = '<br>' + '</br><br>'.join(parts) + '</br>'
+
+def get_group_html(label: str, summary: str | None, paper_html: str) -> str:
+    escaped_label = escape(label)
+    summary_html = f'<div style="{GROUP_SUMMARY_STYLE}">{escape(summary)}</div>' if summary else ''
+    return (
+        f'<div style="{GROUP_WRAPPER_STYLE}">'
+        f'<h2 style="{GROUP_HEADING_STYLE}">{escaped_label}</h2>'
+        f'{summary_html}'
+        f'{paper_html}'
+        '</div>'
+    )
+
+
+def render_email(groups:list[PaperGroup]) -> str:
+    if len(groups) == 0 :
+        return framework.replace('__CONTENT__', get_empty_html())
+
+    rendered_groups = []
+    for group in groups:
+        paper_parts = [_render_paper_html(paper) for paper in group.papers]
+        paper_html = '<br>' + PAPER_SPACING.join(paper_parts) + '</br>'
+        rendered_groups.append(get_group_html(group.label, group.summary, paper_html))
+
+    content = '<br>' + PAPER_SPACING.join(rendered_groups) + '</br>'
     return framework.replace('__CONTENT__', content)

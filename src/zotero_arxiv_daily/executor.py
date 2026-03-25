@@ -9,28 +9,35 @@ from datetime import datetime
 from .reranker import get_reranker_cls
 from .construct_email import render_email
 from .utils import send_email
+from .topic_clusterer import TopicClusterer
 from openai import OpenAI
 from tqdm import tqdm
+
+
 class Executor:
-    def __init__(self, config:DictConfig):
+    def __init__(self, config: DictConfig):
         self.config = config
         self.retrievers = {
             source: get_retriever_cls(source)(config) for source in config.executor.source
         }
         self.reranker = get_reranker_cls(config.executor.reranker)(config)
         self.openai_client = OpenAI(api_key=config.llm.api.key, base_url=config.llm.api.base_url)
+        self.topic_clusterer = TopicClusterer(self.openai_client, config.llm)
+
     def fetch_zotero_corpus(self) -> list[CorpusPaper]:
         logger.info("Fetching zotero corpus")
         zot = zotero.Zotero(self.config.zotero.user_id, 'user', self.config.zotero.api_key)
         collections = zot.everything(zot.collections())
-        collections = {c['key']:c for c in collections}
+        collections = {c['key']: c for c in collections}
         corpus = zot.everything(zot.items(itemType='conferencePaper || journalArticle || preprint'))
         corpus = [c for c in corpus if c['data']['abstractNote'] != '']
-        def get_collection_path(col_key:str) -> str:
+
+        def get_collection_path(col_key: str) -> str:
             if p := collections[col_key]['data']['parentCollection']:
                 return get_collection_path(p) + '/' + collections[col_key]['data']['name']
             else:
                 return collections[col_key]['data']['name']
+
         for c in corpus:
             paths = [get_collection_path(col) for col in c['data']['collections']]
             c['paths'] = paths
@@ -41,8 +48,8 @@ class Executor:
             added_date=datetime.strptime(c['data']['dateAdded'], '%Y-%m-%dT%H:%M:%SZ'),
             paths=c['paths']
         ) for c in corpus]
-    
-    def filter_corpus(self, corpus:list[CorpusPaper]) -> list[CorpusPaper]:
+
+    def filter_corpus(self, corpus: list[CorpusPaper]) -> list[CorpusPaper]:
         if not self.config.zotero.include_path:
             return corpus
         new_corpus = []
@@ -56,7 +63,6 @@ class Executor:
         logger.info(f"Selected {len(new_corpus)} zotero papers:\n{samples}\n...")
         return new_corpus
 
-    
     def run(self):
         corpus = self.fetch_zotero_corpus()
         corpus = self.filter_corpus(corpus)
@@ -82,10 +88,17 @@ class Executor:
             for p in tqdm(reranked_papers):
                 p.generate_tldr(self.openai_client, self.config.llm)
                 p.generate_affiliations(self.openai_client, self.config.llm)
-        elif not self.config.executor.send_empty:
+
+        if len(reranked_papers) == 0 and not self.config.executor.send_empty:
             logger.info("No new papers found. No email will be sent.")
             return
+
+        grouped_papers = []
+        if len(reranked_papers) > 0:
+            logger.info("Clustering selected papers...")
+            grouped_papers = self.topic_clusterer.cluster_papers(reranked_papers)
+
         logger.info("Sending email...")
-        email_content = render_email(reranked_papers)
+        email_content = render_email(grouped_papers)
         send_email(self.config, email_content)
         logger.info("Email sent successfully")
