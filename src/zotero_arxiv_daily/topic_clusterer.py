@@ -1,4 +1,5 @@
 import json
+import re
 from dataclasses import dataclass
 from typing import Any
 
@@ -16,9 +17,15 @@ class PaperGroup:
 
 
 class TopicClusterer:
+    GENERIC_LABEL_PATTERN = re.compile(r"^group\s+\d+$", re.IGNORECASE)
+
     def __init__(self, openai_client: OpenAI, llm_params: dict):
         self.openai_client = openai_client
         self.llm_params = llm_params
+
+    @classmethod
+    def _is_generic_label(cls, label: str) -> bool:
+        return bool(cls.GENERIC_LABEL_PATTERN.fullmatch(label.strip()))
 
     def cluster_papers(self, papers: list[Paper]) -> list[PaperGroup]:
         if len(papers) < 6:
@@ -112,6 +119,8 @@ class TopicClusterer:
 
             if not isinstance(label, str) or not label.strip():
                 raise ValueError("group label must be non-empty")
+            if self._is_generic_label(label):
+                raise ValueError("group label must be non-generic")
             if not isinstance(summary, str) or not summary.strip():
                 raise ValueError("group summary must be non-empty")
             if not isinstance(paper_indices, list) or len(paper_indices) == 0:

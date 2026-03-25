@@ -1,7 +1,23 @@
+from types import SimpleNamespace
+
 import pytest
-import pickle
-from openai import OpenAI
+
 from zotero_arxiv_daily.protocol import Paper
+
+
+class FakeChatClient:
+    def __init__(self, response: str):
+        self.response = response
+        self.requests = []
+        self.chat = SimpleNamespace(completions=SimpleNamespace(create=self.create))
+
+    def create(self, *args, **kwargs):
+        self.requests.append(kwargs)
+        return SimpleNamespace(
+            choices=[SimpleNamespace(message=SimpleNamespace(content=self.response))]
+        )
+
+
 @pytest.fixture
 def paper() -> Paper:
     full_text = r"""
@@ -54,12 +70,26 @@ emerging energy-efficient AI hardware accelerators based on novel non-volatile m
         full_text=full_text
     )
 
-def test_tldr(config,paper:Paper):
-    openai_client = OpenAI(api_key=config.llm.api.key, base_url=config.llm.api.base_url)
-    paper.generate_tldr(openai_client, config.llm)
-    assert paper.tldr is not None
+def test_tldr(config, paper: Paper):
+    openai_client = FakeChatClient("A compact summary of the paper.")
 
-def test_affiliations(config,paper:Paper):
-    openai_client = OpenAI(api_key=config.llm.api.key, base_url=config.llm.api.base_url)
+    paper.generate_tldr(openai_client, config.llm)
+
+    assert paper.tldr == "A compact summary of the paper."
+    request = openai_client.requests[0]
+    assert request["messages"][0]["role"] == "system"
+    assert "summarizes scientific paper" in request["messages"][0]["content"]
+    assert "GRASP" in request["messages"][1]["content"]
+
+
+def test_affiliations(config, paper: Paper):
+    openai_client = FakeChatClient('["The Pennsylvania State University", "The Pennsylvania State University"]')
+
     paper.generate_affiliations(openai_client, config.llm)
+
     assert paper.affiliations is not None
+    assert set(paper.affiliations) == {"The Pennsylvania State University"}
+    request = openai_client.requests[0]
+    assert request["messages"][0]["role"] == "system"
+    assert "extracts affiliations of authors" in request["messages"][0]["content"]
+    assert "The Pennsylvania State University" in request["messages"][1]["content"]

@@ -172,6 +172,68 @@ def test_cluster_papers_missing_summaries_trigger_retry_then_fallback(llm_config
     assert groups[0].papers == papers
 
 
+def test_cluster_papers_rejects_generic_group_labels(llm_config):
+    papers = make_six_papers()
+    generic_labels = """{
+  \"groups\": [
+    {\"label\": \"Group 1\", \"summary\": \"Vision papers.\", \"paper_indices\": [0, 2]},
+    {\"label\": \"Reasoning\", \"summary\": \"Reasoning papers.\", \"paper_indices\": [1, 5]},
+    {\"label\": \"Agents\", \"summary\": \"Agent papers.\", \"paper_indices\": [3, 4]}
+  ]
+}"""
+    client = FakeChatClient([generic_labels, generic_labels])
+
+    groups = TopicClusterer(client, llm_config).cluster_papers(papers)
+
+    assert client.calls == 2
+    assert len(groups) == 1
+    assert groups[0].label == "Relevant papers today"
+    assert groups[0].summary is None
+    assert groups[0].papers == papers
+
+
+def test_cluster_papers_rejects_two_groups_for_six_papers(llm_config):
+    papers = make_six_papers()
+    two_groups = """{
+  \"groups\": [
+    {\"label\": \"Vision\", \"summary\": \"Vision papers.\", \"paper_indices\": [0, 1, 2]},
+    {\"label\": \"Agents\", \"summary\": \"Agent and reasoning papers.\", \"paper_indices\": [3, 4, 5]}
+  ]
+}"""
+    client = FakeChatClient([two_groups, two_groups])
+
+    groups = TopicClusterer(client, llm_config).cluster_papers(papers)
+
+    assert client.calls == 2
+    assert len(groups) == 1
+    assert groups[0].label == "Relevant papers today"
+    assert groups[0].summary is None
+    assert groups[0].papers == papers
+
+
+def test_cluster_papers_rejects_six_groups_for_six_papers(llm_config):
+    papers = make_six_papers()
+    six_groups = """{
+  \"groups\": [
+    {\"label\": \"Vision\", \"summary\": \"Vision paper.\", \"paper_indices\": [0]},
+    {\"label\": \"Reasoning\", \"summary\": \"Reasoning paper.\", \"paper_indices\": [1]},
+    {\"label\": \"Perception\", \"summary\": \"Perception paper.\", \"paper_indices\": [2]},
+    {\"label\": \"Agents\", \"summary\": \"Agent paper.\", \"paper_indices\": [3]},
+    {\"label\": \"Planning\", \"summary\": \"Planning paper.\", \"paper_indices\": [4]},
+    {\"label\": \"Evaluation\", \"summary\": \"Evaluation paper.\", \"paper_indices\": [5]}
+  ]
+}"""
+    client = FakeChatClient([six_groups, six_groups])
+
+    groups = TopicClusterer(client, llm_config).cluster_papers(papers)
+
+    assert client.calls == 2
+    assert len(groups) == 1
+    assert groups[0].label == "Relevant papers today"
+    assert groups[0].summary is None
+    assert groups[0].papers == papers
+
+
 class FakeTransportError(OpenAIError):
     pass
 
