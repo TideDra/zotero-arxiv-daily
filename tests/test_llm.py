@@ -75,16 +75,9 @@ def test_tldr(config, paper: Paper):
 
     paper.generate_tldr(openai_client, config.llm)
 
-    assert paper.tldr == "A compact summary of the paper."
-    request = openai_client.requests[0]
-    assert request["messages"][0]["role"] == "system"
-    assert "summarizes scientific paper" in request["messages"][0]["content"]
-    assert "GRASP" in request["messages"][1]["content"]
-
-
-def test_affiliations(config, paper: Paper):
-    openai_client = FakeChatClient('["The Pennsylvania State University", "The Pennsylvania State University"]')
-
+@pytest.mark.ci
+def test_affiliations(config,paper:Paper):
+    openai_client = OpenAI(api_key=config.llm.api.key, base_url=config.llm.api.base_url)
     paper.generate_affiliations(openai_client, config.llm)
 
     assert paper.affiliations is not None

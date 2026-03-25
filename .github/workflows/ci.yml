@@ -39,4 +39,4 @@ jobs:
           OPENAI_API_KEY: "sk-xxx"
           OPENAI_API_BASE: "http://openai:30000/v1"
         run: |
-          uv run pytest
+          uv run pytest -m ""

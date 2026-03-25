@@ -25,6 +25,7 @@ dependencies = [
     "pymupdf-layout>=1.27.1",
     "dotenv>=0.9.9",
     "peft>=0.18.1",
+    "trafilatura>=2.0.0",
 ]
 
 [tool.uv.sources]
@@ -34,6 +35,15 @@ torch = { index = "pytorch" }
 name = "pytorch"
 url = "https://download.pytorch.org/whl/cpu"
 explicit = true
+
+[tool.pytest.ini_options]
+addopts = "-m 'not ci'"
+markers = [
+    "ci: tests that only run in CI (require external services)",
+]
+filterwarnings = [
+    "ignore::DeprecationWarning:multiprocessing",
+]
 
 [dependency-groups]
 dev = [

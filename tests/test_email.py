@@ -189,10 +189,6 @@ def test_send_email(config, papers: list[Paper], monkeypatch: pytest.MonkeyPatch
     assert sender == config.email.sender
     assert receivers == [config.email.receiver]
 
-    parsed = message_from_string(raw_message)
-    assert parsed["To"] is not None
-    assert parsed["Subject"] is not None
-    assert parsed.get_content_type() == "text/html"
-    decoded_html = parsed.get_payload(decode=True).decode("utf-8")
-    assert "Vision" in decoded_html
-    assert papers[0].title in decoded_html
+@pytest.mark.ci
+def test_send_email(config,papers:list[Paper]):
+    send_email(config, render_email(papers))

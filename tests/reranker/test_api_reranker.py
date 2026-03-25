@@ -1,32 +1,8 @@
-from types import SimpleNamespace
-
-import numpy as np
-
-import zotero_arxiv_daily.reranker.api as api_module
+import pytest
 from zotero_arxiv_daily.reranker.api import ApiReranker
 
-
-def test_api_reranker(config, monkeypatch):
-    observed = {}
-
-    class FakeOpenAI:
-        def __init__(self, *args, **kwargs):
-            observed["init_kwargs"] = kwargs
-            self.embeddings = SimpleNamespace(create=self.create)
-
-        def create(self, *, input, model):
-            observed["request"] = {"input": input, "model": model}
-            embedding_map = {
-                "hello": [1.0, 0.0],
-                "world": [0.0, 1.0],
-                "ping": [1.0, 1.0],
-            }
-            return SimpleNamespace(
-                data=[SimpleNamespace(embedding=embedding_map[text]) for text in input]
-            )
-
-    monkeypatch.setattr(api_module, "OpenAI", FakeOpenAI)
-
+@pytest.mark.ci
+def test_api_reranker(config):
     reranker = ApiReranker(config)
     score = reranker.get_similarity_score(["hello", "world"], ["ping"])
 
