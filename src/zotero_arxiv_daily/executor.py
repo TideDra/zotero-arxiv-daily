@@ -29,9 +29,24 @@ def normalize_include_path_patterns(include_path: list[str] | ListConfig | None)
     return list(include_path)
 
 
+def normalize_zotero_settings(zotero_config: DictConfig) -> tuple[str, str, str]:
+    user_id = str(zotero_config.get("user_id") or "").strip()
+    api_key = str(zotero_config.get("api_key") or "").strip()
+    library_type = str(zotero_config.get("library_type", "user")).strip().lower()
+
+    if not user_id or not api_key:
+        raise ValueError("config.zotero.user_id and config.zotero.api_key must be set.")
+
+    if library_type not in {"user", "group"}:
+        raise ValueError('config.zotero.library_type must be either "user" or "group".')
+
+    return user_id, api_key, library_type
+
+
 class Executor:
     def __init__(self, config:DictConfig):
         self.config = config
+        self.zotero_user_id, self.zotero_api_key, self.zotero_library_type = normalize_zotero_settings(config.zotero)
         self.include_path_patterns = normalize_include_path_patterns(config.zotero.include_path)
         self.retrievers = {
             source: get_retriever_cls(source)(config) for source in config.executor.source
@@ -40,10 +55,13 @@ class Executor:
         self.openai_client = OpenAI(api_key=config.llm.api.key, base_url=config.llm.api.base_url)
     def fetch_zotero_corpus(self) -> list[CorpusPaper]:
         logger.info("Fetching zotero corpus")
-        zot = zotero.Zotero(self.config.zotero.user_id, 'user', self.config.zotero.api_key)
-        collections = zot.everything(zot.collections())
+        zot = zotero.Zotero(self.zotero_user_id, self.zotero_library_type, self.zotero_api_key)
+        try:
+            collections = zot.everything(zot.collections())
+            corpus = zot.everything(zot.items(itemType='conferencePaper || journalArticle || preprint'))
+        except Exception as e:
+            raise RuntimeError("Failed to access Zotero library. Please check user_id, api_key, and library_type.") from e
         collections = {c['key']:c for c in collections}
-        corpus = zot.everything(zot.items(itemType='conferencePaper || journalArticle || preprint'))
         corpus = [c for c in corpus if c['data']['abstractNote'] != '']
         def get_collection_path(col_key:str) -> str:
             if p := collections[col_key]['data']['parentCollection']:
