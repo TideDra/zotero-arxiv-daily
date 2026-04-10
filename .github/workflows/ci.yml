@@ -12,15 +12,6 @@ on:
 jobs:
   pytest:
     runs-on: ubuntu-latest
-    services:
-      mailhog:
-        image: mailhog/mailhog:latest
-        ports:
-          - 1025:1025  # SMTP
-      openai:
-        image: tidedra/mock_openai:latest
-        ports:
-          - 30000:30000
     steps:
       - name: Checkout
         uses: actions/checkout@v6
@@ -28,15 +19,6 @@ jobs:
       - name: Setup uv
         uses: astral-sh/setup-uv@v7.1.4
 
-
       - name: Run Pytest
-        env:
-          ZOTERO_ID: "0"
-          ZOTERO_KEY: "AbCdEfGhIjKlMnOpQrStUvWx"
-          SENDER: "test@example.com"
-          RECEIVER: "test@example.com"
-          SENDER_PASSWORD: "test"
-          OPENAI_API_KEY: "sk-xxx"
-          OPENAI_API_BASE: "http://openai:30000/v1"
         run: |
-          uv run pytest -m ""
+          uv run pytest -m "" --cov=src/zotero_arxiv_daily --cov-report=term-missing
