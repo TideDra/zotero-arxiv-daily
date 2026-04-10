@@ -1,11 +1,18 @@
 """Tests for ArxivRetriever."""
 
+import sys
 import time
 from types import SimpleNamespace
 
 import feedparser
+import requests
 
-from zotero_arxiv_daily.retriever.arxiv_retriever import ArxivRetriever, _run_with_hard_timeout
+from zotero_arxiv_daily.retriever.arxiv_retriever import (
+    ArxivRetriever,
+    _extract_text_from_html_worker,
+    _run_with_hard_timeout,
+    extract_text_from_html,
+)
 import zotero_arxiv_daily.retriever.arxiv_retriever as arxiv_retriever
 
 
@@ -16,6 +23,18 @@ def _sleep_and_return(value: str, delay_seconds: float) -> str:
 
 def _raise_runtime_error() -> None:
     raise RuntimeError("boom")
+
+
+class FakeResponse:
+    def __init__(self, status_code: int = 200, text: str = "<html></html>"):
+        self.status_code = status_code
+        self.text = text
+
+    def raise_for_status(self) -> None:
+        if self.status_code >= 400:
+            error = requests.HTTPError(f"{self.status_code} response")
+            error.response = SimpleNamespace(status_code=self.status_code)
+            raise error
 
 
 def test_arxiv_retriever(config, mock_feedparser, monkeypatch):
@@ -88,3 +107,66 @@ def test_run_with_hard_timeout_returns_none_on_failure(monkeypatch):
     )
     assert result is None
     assert "boom" in warnings[0]
+
+
+def test_extract_text_from_html_returns_none_on_404(monkeypatch):
+    warnings: list[str] = []
+    monkeypatch.setattr(arxiv_retriever, "logger", SimpleNamespace(warning=warnings.append))
+    monkeypatch.setattr(arxiv_retriever.requests, "get", lambda *args, **kwargs: FakeResponse(status_code=404))
+    monkeypatch.setitem(
+        sys.modules,
+        "trafilatura",
+        SimpleNamespace(extract=lambda *args, **kwargs: "should not be used"),
+    )
+
+    paper = SimpleNamespace(title="No HTML paper", entry_id="http://arxiv.org/abs/2604.07328v1")
+
+    assert extract_text_from_html(paper) is None
+    assert warnings == []
+
+
+def test_extract_text_from_html_worker_extracts_text(monkeypatch):
+    monkeypatch.setattr(
+        arxiv_retriever.requests,
+        "get",
+        lambda *args, **kwargs: FakeResponse(text="<html><body>paper text</body></html>"),
+    )
+    monkeypatch.setitem(
+        sys.modules,
+        "trafilatura",
+        SimpleNamespace(extract=lambda *args, **kwargs: "paper text"),
+    )
+
+    assert _extract_text_from_html_worker("https://arxiv.org/html/2402.08954v1") == "paper text"
+
+
+def test_extract_text_from_html_logs_warning_when_no_text_extracted(monkeypatch):
+    warnings: list[str] = []
+    monkeypatch.setattr(arxiv_retriever, "logger", SimpleNamespace(warning=warnings.append))
+    monkeypatch.setattr(
+        arxiv_retriever.requests,
+        "get",
+        lambda *args, **kwargs: FakeResponse(text="<html><body>empty</body></html>"),
+    )
+    monkeypatch.setitem(sys.modules, "trafilatura", SimpleNamespace(extract=lambda *args, **kwargs: None))
+
+    paper = SimpleNamespace(title="Empty HTML paper", entry_id="https://arxiv.org/abs/2402.08954v1")
+
+    assert extract_text_from_html(paper) is None
+    assert "No text extracted" in warnings[0]
+
+
+def test_extract_text_from_html_logs_warning_on_server_error(monkeypatch):
+    warnings: list[str] = []
+    monkeypatch.setattr(arxiv_retriever, "logger", SimpleNamespace(warning=warnings.append))
+    monkeypatch.setattr(arxiv_retriever.requests, "get", lambda *args, **kwargs: FakeResponse(status_code=500))
+    monkeypatch.setitem(
+        sys.modules,
+        "trafilatura",
+        SimpleNamespace(extract=lambda *args, **kwargs: "should not be used"),
+    )
+
+    paper = SimpleNamespace(title="Broken HTML paper", entry_id="https://arxiv.org/abs/2402.08954v1")
+
+    assert extract_text_from_html(paper) is None
+    assert "500 response" in warnings[0]

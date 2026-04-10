@@ -86,10 +86,11 @@ def _extract_text_from_pdf_worker(pdf_url: str) -> str:
 def _extract_text_from_html_worker(html_url: str) -> str | None:
     import trafilatura
 
-    downloaded = trafilatura.fetch_url(html_url)
-    if downloaded is None:
-        raise ValueError(f"Failed to download HTML from {html_url}")
-    text = trafilatura.extract(downloaded, include_comments=False, include_tables=False)
+    response = requests.get(html_url, timeout=DOWNLOAD_TIMEOUT)
+    if response.status_code == 404:
+        return None
+    response.raise_for_status()
+    text = trafilatura.extract(response.text, include_comments=False, include_tables=False)
     if not text:
         raise ValueError(f"No text extracted from {html_url}")
     return text
@@ -163,7 +164,7 @@ class ArxivRetriever(BaseRetriever):
 
 
 def extract_text_from_html(paper: ArxivResult) -> str | None:
-    html_url = paper.entry_id.replace("/abs/", "/html/")
+    html_url = paper.entry_id.replace("http://", "https://").replace("/abs/", "/html/", 1)
     try:
         return _extract_text_from_html_worker(html_url)
     except Exception as exc:
