@@ -1,32 +1,10 @@
 from abc import ABC, abstractmethod
 from omegaconf import DictConfig
 from ..protocol import Paper, RawPaperItem
-from concurrent.futures import ProcessPoolExecutor, as_completed
 from tqdm import tqdm
 from typing import Type
+from time import sleep
 from loguru import logger
-
-
-def _describe_raw_paper(raw_paper: RawPaperItem) -> str:
-    title = getattr(raw_paper, "title", None)
-    if title:
-        return str(title)
-    if isinstance(raw_paper, dict):
-        for key in ("title", "entry_id", "id", "doi"):
-            value = raw_paper.get(key)
-            if value:
-                return str(value)
-    return repr(raw_paper)
-
-
-def _convert_to_paper_safe(retriever: "BaseRetriever", raw_paper: RawPaperItem) -> Paper | None:
-    try:
-        return retriever.convert_to_paper(raw_paper)
-    except Exception as exc:
-        logger.warning(
-            f"Skipping paper {_describe_raw_paper(raw_paper)}: {type(exc).__name__}: {exc}"
-        )
-        return None
 
 
 class BaseRetriever(ABC):
@@ -45,21 +23,18 @@ class BaseRetriever(ABC):
 
     def retrieve_papers(self) -> list[Paper]:
         raw_papers = self._retrieve_raw_papers()
-        papers = []
         logger.info("Processing papers...")
-        with ProcessPoolExecutor(max_workers=self.config.executor.max_workers) as exec_pool:
-            futures = {exec_pool.submit(_convert_to_paper_safe, self, rp): i for i, rp in enumerate(raw_papers)}
-            papers = [None] * len(raw_papers)
-            for future in tqdm(as_completed(futures), total=len(raw_papers), desc="Converting papers"):
-                try:
-                    papers[futures[future]] = future.result()
-                except Exception as exc:
-                    raw_paper = raw_papers[futures[future]]
-                    logger.warning(
-                        f"Skipping paper {_describe_raw_paper(raw_paper)} after worker failure: "
-                        f"{type(exc).__name__}: {exc}"
-                    )
-        return [p for p in papers if p is not None]
+        papers = []
+        for raw_paper in tqdm(raw_papers, total=len(raw_papers), desc="Converting papers"):
+            try:
+                paper = self.convert_to_paper(raw_paper)
+            except Exception as exc:
+                logger.warning(f"Skipping paper {getattr(raw_paper, 'title', raw_paper)}: {exc}")
+                continue
+            if paper is not None:
+                papers.append(paper)
+            sleep(1)
+        return papers
 
 registered_retrievers = {}
 
