@@ -9,7 +9,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
         with:
           repository: ${{ vars.REPOSITORY }}
           ref: ${{ vars.REF }}
@@ -21,19 +21,14 @@ jobs:
         env:
           ZOTERO_ID: ${{ secrets.ZOTERO_ID }}
           ZOTERO_KEY: ${{ secrets.ZOTERO_KEY }}
-          ZOTERO_IGNORE: ${{ vars.ZOTERO_IGNORE }}
-          SEND_EMPTY: ${{ vars.SEND_EMPTY }}
-          ARXIV_QUERY: ${{ secrets.ARXIV_QUERY }}
-          SMTP_SERVER: ${{ secrets.SMTP_SERVER }}
-          SMTP_PORT: ${{ secrets.SMTP_PORT }}
           SENDER: ${{ secrets.SENDER }}
           RECEIVER: ${{ secrets.RECEIVER }}
           SENDER_PASSWORD: ${{ secrets.SENDER_PASSWORD }}
-          MAX_PAPER_NUM: ${{ secrets.MAX_PAPER_NUM }}
-          USE_LLM_API: ${{ secrets.USE_LLM_API }}
           OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
           OPENAI_API_BASE: ${{ secrets.OPENAI_API_BASE }}
-          MODEL_NAME: ${{ secrets.MODEL_NAME }}
-          LANGUAGE: ${{ vars.LANGUAGE }}
+          CUSTOM_CONFIG: ${{ vars.CUSTOM_CONFIG }}
         run: |
-          uv run main.py
+          printf "%b\n" "$CUSTOM_CONFIG" > config/custom.yaml
+          echo "Use custom config: "
+          cat config/custom.yaml
+          uv run src/zotero_arxiv_daily/main.py
