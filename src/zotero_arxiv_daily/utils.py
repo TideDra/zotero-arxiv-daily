@@ -1,7 +1,9 @@
 import tarfile
 import re
 import glob
+import math
 import smtplib
+from collections import Counter
 from email.header import Header
 from email.mime.text import MIMEText
 from email.utils import parseaddr, formataddr
@@ -15,7 +17,43 @@ pymupdf.layout.activate()
 
 import pymupdf4llm  # noqa: E402
 
-def extract_tex_code_from_tar(file_path:str, paper_id:str) -> dict[str,str]:
+_TOKEN_RE = re.compile(r'[a-zA-Z0-9]+')
+
+def _tokenize(text: str) -> list[str]:
+    return [t.lower() for t in _TOKEN_RE.findall(text)]
+
+
+def _bm25_pick(query: str, candidates: dict[str, str], k1: float = 1.5, b: float = 0.75) -> str:
+    """Return the candidate key whose content best matches *query* by BM25."""
+    query_tokens = _tokenize(query)
+    if not query_tokens:
+        return next(iter(candidates))
+
+    doc_tokens = {name: _tokenize(content) for name, content in candidates.items()}
+    N = len(doc_tokens)
+    avgdl = sum(len(t) for t in doc_tokens.values()) / max(N, 1)
+
+    df: Counter[str] = Counter()
+    for tokens in doc_tokens.values():
+        df.update(set(tokens))
+
+    best_name, best_score = None, -1.0
+    for name, tokens in doc_tokens.items():
+        tf = Counter(tokens)
+        dl = len(tokens)
+        score = 0.0
+        for q in query_tokens:
+            n_q = df.get(q, 0)
+            idf = math.log((N - n_q + 0.5) / (n_q + 0.5) + 1)
+            f_q = tf.get(q, 0)
+            score += idf * (f_q * (k1 + 1)) / (f_q + k1 * (1 - b + b * dl / max(avgdl, 1)))
+        if score > best_score:
+            best_score = score
+            best_name = name
+    return best_name
+
+
+def extract_tex_code_from_tar(file_path:str, paper_id:str, paper_title:str | None = None) -> dict[str,str]:
     try:
         tar = tarfile.open(file_path)
     except tarfile.ReadError:
@@ -48,25 +86,34 @@ def extract_tex_code_from_tar(file_path:str, paper_id:str) -> dict[str,str]:
 
     if main_tex is None:
         logger.debug(f"Trying to choose tex file containing the document block as main tex file of {paper_id}")
-    #read all tex files
+
     file_contents = {}
+    doc_block_candidates: list[str] = []
     for t in tex_files:
         f = tar.extractfile(t)
         content = f.read().decode('utf-8',errors='ignore')
-        #remove comments
         content = re.sub(r'%.*\n', '\n', content)
         content = re.sub(r'\\begin{comment}.*?\\end{comment}', '', content, flags=re.DOTALL)
         content = re.sub(r'\\iffalse.*?\\fi', '', content, flags=re.DOTALL)
-        #remove redundant \n
         content = re.sub(r'\n+', '\n', content)
         content = re.sub(r'\\\\', '', content)
-        #remove consecutive spaces
         content = re.sub(r'[ \t\r\f]{3,}', ' ', content)
-        if main_tex is None and re.search(r'\\begin\{document\}', content) and not any(w in t for w in ['example', 'sample']):
-            main_tex = t
-            logger.debug(f"Choose {t} as main tex file of {paper_id}")
+        if main_tex is None and re.search(r'\\begin\{document\}', content) and not any(w in t for w in ['example', 'sample', 'template']):
+            doc_block_candidates.append(t)
         file_contents[t] = content
-    
+
+    if main_tex is None:
+        if len(doc_block_candidates) == 1:
+            main_tex = doc_block_candidates[0]
+            logger.debug(f"Choose {main_tex} as main tex file of {paper_id}")
+        elif len(doc_block_candidates) > 1:
+            if paper_title:
+                main_tex = _bm25_pick(paper_title, {c: file_contents[c] for c in doc_block_candidates})
+                logger.debug(f"Multiple document blocks found in {paper_id}; BM25 selected {main_tex} from {doc_block_candidates}")
+            else:
+                main_tex = doc_block_candidates[0]
+                logger.debug(f"Multiple document blocks found in {paper_id}; no title provided, using first candidate {main_tex}")
+
     if main_tex is not None:
         main_source:str = file_contents[main_tex]
         #find and replace all included sub-files

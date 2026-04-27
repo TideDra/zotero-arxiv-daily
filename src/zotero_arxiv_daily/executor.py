@@ -13,26 +13,27 @@ from openai import OpenAI
 from tqdm import tqdm
 
 
-def normalize_include_path_patterns(include_path: list[str] | ListConfig | None) -> list[str] | None:
-    if include_path is None:
+def normalize_path_patterns(patterns: list[str] | ListConfig | None, config_key: str) -> list[str] | None:
+    if patterns is None:
         return None
 
-    if not isinstance(include_path, (list, ListConfig)):
+    if not isinstance(patterns, (list, ListConfig)):
         raise TypeError(
-            "config.zotero.include_path must be a list of glob patterns or null, "
+            f"config.zotero.{config_key} must be a list of glob patterns or null, "
             'for example ["2026/survey/**"]. Single strings are not supported.'
         )
 
-    if any(not isinstance(pattern, str) for pattern in include_path):
-        raise TypeError("config.zotero.include_path must contain only glob pattern strings.")
+    if any(not isinstance(pattern, str) for pattern in patterns):
+        raise TypeError(f"config.zotero.{config_key} must contain only glob pattern strings.")
 
-    return list(include_path)
+    return list(patterns)
 
 
 class Executor:
     def __init__(self, config:DictConfig):
         self.config = config
-        self.include_path_patterns = normalize_include_path_patterns(config.zotero.include_path)
+        self.include_path_patterns = normalize_path_patterns(config.zotero.include_path, "include_path")
+        self.ignore_path_patterns = normalize_path_patterns(config.zotero.ignore_path, "ignore_path")
         self.retrievers = {
             source: get_retriever_cls(source)(config) for source in config.executor.source
         }
@@ -62,22 +63,31 @@ class Executor:
         ) for c in corpus]
     
     def filter_corpus(self, corpus:list[CorpusPaper]) -> list[CorpusPaper]:
-        if not self.include_path_patterns:
-            return corpus
-        new_corpus = []
-        logger.info(f"Selecting zotero papers matching include_path: {self.include_path_patterns}")
-        for c in corpus:
-            match_results = [
-                glob_match(path, pattern)
-                for path in c.paths
-                for pattern in self.include_path_patterns
+        if self.include_path_patterns:
+            logger.info(f"Selecting zotero papers matching include_path: {self.include_path_patterns}")
+            corpus = [
+                c for c in corpus
+                if any(
+                    glob_match(path, pattern)
+                    for path in c.paths
+                    for pattern in self.include_path_patterns
+                )
             ]
-            if any(match_results):
-                new_corpus.append(c)
-        samples = random.sample(new_corpus, min(5, len(new_corpus)))
-        samples = '\n'.join([c.title + ' - ' + '\n'.join(c.paths) for c in samples])
-        logger.info(f"Selected {len(new_corpus)} zotero papers:\n{samples}\n...")
-        return new_corpus
+        if self.ignore_path_patterns:
+            logger.info(f"Excluding zotero papers matching ignore_path: {self.ignore_path_patterns}")
+            corpus = [
+                c for c in corpus
+                if not any(
+                    glob_match(path, pattern)
+                    for path in c.paths
+                    for pattern in self.ignore_path_patterns
+                )
+            ]
+        if self.include_path_patterns or self.ignore_path_patterns:
+            samples = random.sample(corpus, min(5, len(corpus)))
+            samples = '\n'.join([c.title + ' - ' + '\n'.join(c.paths) for c in samples])
+            logger.info(f"Selected {len(corpus)} zotero papers:\n{samples}\n...")
+        return corpus
 
     
     def run(self):
