@@ -1,0 +1,551 @@
+From a53a5ad277820028981c9f321bf99571c122c158 Mon Sep 17 00:00:00 2001
+
+name: zotro-cvpr-daily
+on:
+  workflow_dispatch:
+  schedule:
+    - cron: '0 22 * * *'
+
+jobs:
+  calculate-and-send:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+        with:
+          repository: ${{ vars.REPOSITORY }}
+          ref: ${{ vars.REF }}
+
+      - name: Setup uv
+        uses: astral-sh/setup-uv@v7
+
+      - name: Run conference recommendation script
+        env:
+          ZOTERO_ID: ${{ secrets.ZOTERO_ID }}
+          ZOTERO_KEY: ${{ secrets.ZOTERO_KEY }}
+          SENDER: ${{ secrets.SENDER }}
+          RECEIVER: ${{ secrets.RECEIVER }}
+          SENDER_PASSWORD: ${{ secrets.SENDER_PASSWORD }}
+          OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+          OPENAI_API_BASE: ${{ secrets.OPENAI_API_BASE }}
+          CUSTOM_CONFIG: ${{ vars.CUSTOM_CONFIG }}
+        run: |
+          cat > config/custom.yaml <<'EOF'
+          zotero:
+            user_id: ${oc.env:ZOTERO_ID}
+            api_key: ${oc.env:ZOTERO_KEY}
+            include_path: null
+
+          email:
+            sender: ${oc.env:SENDER}
+            receiver: ${oc.env:RECEIVER}
+            smtp_server: smtp.qq.com
+            smtp_port: 465
+            sender_password: ${oc.env:SENDER_PASSWORD}
+
+          llm:
+            api:
+              key: ${oc.env:OPENAI_API_KEY}
+              base_url: ${oc.env:OPENAI_API_BASE}
+            generation_kwargs:
+              model: gpt-4o-mini
+
+          source:
+            conference:
+              venues: ["cvpr", "eccv", "iclr", "nips", "aaai", "icml"]
+              year: 2026
+
+          executor:
+            debug: ${oc.env:DEBUG,false}
+            source: ["conference"]
+            max_paper_num: 20
+          EOF
+          if [ -n "$CUSTOM_CONFIG" ]; then
+            printf "%b\n" "$CUSTOM_CONFIG" > config/custom.yaml
+          fi
+          echo "Use custom config: "
+          cat config/custom.yaml
+          uv run src/zotero_arxiv_daily/main.py
+
+@@ -22,50 +22,51 @@
+    <br> 
+</p>
+
+> [!IMPORTANT]
+> Please keep an eye on this repo, and merge your forked repo in time when there is any update of this upstream, in order to enjoy new features and fix found bugs.
+
+## 🧐 About <a name = "about"></a>
+
+> Track new scientific researches of your interest by just forking (and staring) this repo!😊
+
+*Zotero-arXiv-Daily* finds arxiv papers that may attract you based on the context of your Zotero library, and then sends the result to your mailbox📮. It can be deployed as Github Action Workflow with **zero cost**, **no installation**, and **few configuration** of Github Action environment variables for daily **automatic** delivery.
+
+## ✨ Features
+- Totally free! All the calculation can be done in the Github Action runner locally within its quota (for public repo).
+- AI-generated TL;DR for you to quickly pick up target papers.
+- Affiliations of the paper are resolved and presented.
+- Links of PDF and code implementation (if any) presented in the e-mail.
+- List of papers sorted by relevance with your recent research interest.
+- Fast deployment via fork this repo and set environment variables in the Github Action Page.
+- Support LLM API for generating TL;DR of papers.
+- Ignore unwanted Zotero papers using glob pattern.
+- Support multiple sources of papers to retrieve:
+  - arxiv
+  - biorxiv
+  - medrxiv
+  - OpenReview conference proceedings (CVPR, ECCV, ICLR, NeurIPS/NIPS, AAAI, ICML, and custom venue IDs)
+
+## 📷 Screenshot
+![screenshot](./assets/screenshot.png)
+
+## 🚀 Usage
+### Quick Start
+1. Fork (and star😘) this repo.
+![fork](./assets/fork.png)
+
+2. Set Github Action environment variables.
+![secrets](./assets/secrets.png)
+
+Below are all the secrets you need to set. They are invisible to anyone including you once they are set, for security.
+
+| Key |Description | Example |
+| :---  | :---  | :--- |
+| ZOTERO_ID  | User ID of your Zotero account. **User ID is not your username, but a sequence of numbers**Get your ID from [here](https://www.zotero.org/settings/security). You can find it at the position shown in this [screenshot](https://github.com/TideDra/zotero-arxiv-daily/blob/main/assets/userid.png). | 12345678  |
+| ZOTERO_KEY | An Zotero API key with read access. Get a key from [here](https://www.zotero.org/settings/security).  | AB5tZ877P2j7Sm2Mragq041H   |
+| SENDER | The email account of the SMTP server that sends you email. | abc@qq.com |
+| SENDER_PASSWORD | The password of the sender account. Note that it's not necessarily the password for logging in the e-mail client, but the authentication code for SMTP service. Ask your email provider for this.   | abcdefghijklmn |
+| RECEIVER | The e-mail address that receives the paper list. | abc@outlook.com |
+| OPENAI_API_KEY | API Key when using the API to access LLMs. You can get FREE API for using advanced open source LLMs in [SiliconFlow](https://cloud.siliconflow.cn/i/b3XhBRAm). | sk-xxx |
+| OPENAI_API_BASE | API URL when using the API to access LLMs. | https://api.siliconflow.cn/v1 |
+
+Then you should also set a public variable `CUSTOM_CONFIG` for your custom configuration.
+@@ -80,135 +81,154 @@ zotero:
+
+email:
+  sender: ${oc.env:SENDER}
+  receiver: ${oc.env:RECEIVER}
+  smtp_server: smtp.qq.com
+  smtp_port: 465
+  sender_password: ${oc.env:SENDER_PASSWORD}
+
+llm:
+  api:
+    key: ${oc.env:OPENAI_API_KEY}
+    base_url: ${oc.env:OPENAI_API_BASE}
+  generation_kwargs:
+    model: gpt-4o-mini
+
+source:
+  arxiv:
+    category: ["cs.AI","cs.CV","cs.LG","cs.CL"]
+    include_cross_list: false # Set to true to include arXiv cross-list papers in these categories.
+
+executor:
+  debug: ${oc.env:DEBUG,null}
+  source: ['arxiv']
+```
+Set `source.arxiv.include_cross_list: true` if you want cross-listed papers included.
+
+To run the daily conference recommender requested as `zotro-cvpr-daily`, enable the included `.github/workflows/zotro-cvpr-daily.yml` workflow. It defaults to OpenReview venues `["cvpr", "eccv", "iclr", "nips", "aaai", "icml"]` and sends the top 20 reranked papers; you can override its `year`, venues, or explicit `venue_ids` through `CUSTOM_CONFIG`.
+>[!NOTE]
+> `${oc.env:XXX,yyy}` means the value of the environment variable `XXX`. If the variable is not set, the default value `yyy` will be used.
+
+Here is the full configuration, `???` means the value must be filled in:
+```yaml
+zotero:
+  user_id: ??? # User ID of your Zotero account.
+  api_key: ??? # An Zotero API key with read access.
+  include_path: null # A glob pattern marking the Zotero collections that should be included. Example: "2026/survey/**"
+
+source:
+  arxiv:
+    category: null # The categories of target arxiv papers. Find the abbr of your research area from [here](https://arxiv.org/category_taxonomy). Example: ["cs.AI","cs.CV","cs.LG","cs.CL"]
+    include_cross_list: false # Whether to include arXiv cross-list papers in subscribed categories. Example: true
+  biorxiv:
+    category: null # The categories of target biorxiv papers. Find categories from [here](https://www.biorxiv.org/). Example: ["biochemistry","animal behavior and cognition"]
+  medrxiv:
+    category: null # The categories of target medrxiv papers. Find categories from [here](https://www.medrxiv.org/) Example: ["psychiatry and clinical psychology", "neurology"]
+  conference:
+    venues: null # Conference aliases to fetch from OpenReview. Example: ["cvpr", "eccv", "iclr", "nips", "aaai", "icml"]
+    year: 2026 # Conference year used to build OpenReview venue IDs. Example: 2026
+    limit_per_venue: 1000 # Maximum OpenReview notes fetched per venue before reranking. Example: 1000
+    batch_size: 1000 # OpenReview API page size. Example: 1000
+    timeout_seconds: 30 # OpenReview API request timeout. Example: 30
+    aliases:
+      nips: neurips
+    venue_id_patterns:
+      cvpr: CVPR.cc/{year}/Conference
+      eccv: ECCV.cc/{year}/Conference
+      iclr: ICLR.cc/{year}/Conference
+      neurips: NeurIPS.cc/{year}/Conference
+      aaai: AAAI.org/{year}/Conference
+      icml: ICML.cc/{year}/Conference
+    venue_ids: {} # Optional explicit OpenReview venue IDs per alias. Example: {cvpr: ["CVPR.cc/2026/Conference"]}
+
+email:
+  sender: ??? # The email account of the SMTP server that sends you email. Example: abc@qq.com
+  receiver: ??? # The email account that receives the paper list. Example: abc@outlook.com
+  smtp_server: ??? # The SMTP server that sends the email. Ask your email provider (Gmail, QQ, Outlook, ...) for its SMTP server. Example: smtp.qq.com
+  smtp_port: ??? # The port of SMTP server. Example: 465
+  sender_password: ??? # The password of the sender account. Note that it's not necessarily the password for logging in the e-mail client, but the authentication code for SMTP service. Ask your email provider for this. Example: abcdefghijklmn
+
+llm:
+  api:
+    key: ??? # API Key of your LLM API. Example: sk-xxx
+    base_url: ??? # API URL of your LLM API. Example: https://api.openai.com/v1
+  generation_kwargs:
+  # Arguments for the LLM API. See [here](https://platform.openai.com/docs/api-reference/chat/create) for more details.
+    max_tokens: 16384
+    model: ???
+  language: English # Preferred language for the TL;DR. Example: English
+
+reranker:
+  local:
+    model: jinaai/jina-embeddings-v5-text-nano # The Hugging Face model name of the local embedding model. Example: jinaai/jina-embeddings-v5-text-nano
+    encode_kwargs:
+    # The kwargs for the encode method of the local embedding model. Details see [here](https://www.sbert.net/docs/package_reference/SentenceTransformer.html#sentence_transformers.SentenceTransformer.encode)
+      task: retrieval
+      prompt_name: document
+  api:
+    key: null # API Key of your embedding model API. Example: sk-xxx
+    base_url: null # API URL of your embedding model API. Example: https://api.openai.com/v1
+    model: null # The model name of the embedding model. Example: text-embedding-3-large
+    batch_size: null # The batch size for embedding API requests. Adjust to match your provider's limit. Example: 64
+
+executor:
+  debug: false # Whether to use debug mode. Example: true
+  send_empty: false # Whether to send an empty email even if no new papers today. Example: true
+  max_workers: 4 # Concurrent workers for processing papers. Example: 4
+  max_paper_num: 100 # The maximum number of the papers presented in the email. Example: 100
+  source: ??? # The sources of papers to retrieve. Example: ['arxiv','biorxiv','medrxiv']
+  source: ??? # The sources of papers to retrieve. Example: ['arxiv','biorxiv','medrxiv','conference']
+  reranker: local # The reranker to use. Example: 'local' or 'api'
+```
+
+That's all! Now you can test the workflow by manually triggering it:
+![test](./assets/test.png)
+
+> [!NOTE]
+> The Test-Workflow Action is the debug version of the main workflow (Send-emails-daily), which always retrieve 5 arxiv papers regardless of the date. While the main workflow will be automatically triggered everyday and retrieve new papers released yesterday. There is no new arxiv paper at weekends and holiday, in which case you may see "No new papers found" in the log of main workflow.
+
+Then check the log and the receiver email after it finishes.
+
+By default, the main workflow runs on 22:00 UTC everyday. You can change this time by editting the workflow config `.github/workflows/main.yml`.
+
+### Local Running
+Supported by [uv](https://github.com/astral-sh/uv), this workflow can easily run on your local device if uv is installed:
+```bash
+# set all the environment variables
+# export ZOTERO_ID=xxxx
+# ...
+cd zotero-arxiv-daily
+uv run main.py
+```
+
+## 🚀 Sync with the latest version
+This project is in active development. You can subscribe this repo via `Watch` so that you can be notified once we publish new release.
+
+![Watch](./assets/subscribe_release.png)
+
+
+## 📖 How it works
+*Zotero-arXiv-Daily* firstly retrieves all the papers in your Zotero library and all the papers released in the previous day, via corresponding API. Then it calculates the embedding of each paper's abstract via an embedding model. The score of a paper is its weighted average similarity over all your Zotero papers (newer paper added to the library has higher weight). The TLDR of each paper is generated by LLM, given the text extracted by pymupdf4llm.
+
+## 📌 Limitations
+- The recommendation algorithm is very simple, it may not accurately reflect your interest. Welcome better ideas for improving the algorithm!
+- High `MAX_PAPER_NUM` can lead the execution time exceed the limitation of Github Action runner (6h per execution for public repo, and 2000 mins per month for private repo). Commonly, the quota given to public repo is definitely enough for individual use. If you have special requirements, you can deploy the workflow in your own server, or use a self-hosted Github Action runner, or pay for the exceeded execution time.
+
+## 👯‍♂️ Contribution
+Any issue and PR are welcomed! But remember that **each PR should merge to the `dev` branch**.
+
+## 📃 License
+Distributed under the AGPLv3 License. See `LICENSE` for detail.
+
+## ❤️ Acknowledgement
+- [pyzotero](https://github.com/urschrei/pyzotero)
+- [arxiv](https://github.com/lukasschwab/arxiv.py)
+- [OpenReview](https://openreview.net/)
+- [sentence_transformers](https://github.com/UKPLab/sentence-transformers)
+
+## ☕ Buy Me A Coffee
+If you find this project helpful, welcome to sponsor me via WeChat or via [ko-fi](https://ko-fi.com/tidedra).
+![wechat_qr](assets/wechat_sponsor.JPG)
+
+
+## 🌟 Star History
+
+[![Star History Chart](https://api.star-history.com/svg?repos=TideDra/zotero-arxiv-daily&type=Date)](https://star-history.com/#TideDra/zotero-arxiv-daily&Date)
+
+zotero:
+  user_id: ??? # User ID of your Zotero account.
+  api_key: ??? # An Zotero API key with read access.
+  include_path: null # A glob pattern marking the Zotero collections that should be included. Example: "2026/survey/**"
+
+source:
+  arxiv:
+    category: null # The categories of target arxiv papers. Find the abbr of your research area from [here](https://arxiv.org/category_taxonomy). Example: ["cs.AI","cs.CV","cs.LG","cs.CL"]
+    include_cross_list: false # Whether to include arXiv cross-list papers in subscribed categories. Example: true
+  biorxiv:
+    category: null # The categories of target biorxiv papers. Find categories from [here](https://www.biorxiv.org/). Example: ["biochemistry","animal behavior and cognition"]
+  medrxiv:
+    category: null # The categories of target medrxiv papers. Find categories from [here](https://www.medrxiv.org/) Example: ["psychiatry and clinical psychology", "neurology"]
+  conference:
+    venues: null # Conference aliases to fetch from OpenReview. Example: ["cvpr", "eccv", "iclr", "nips", "aaai", "icml"]
+    year: 2026 # Conference year used to build OpenReview venue IDs. Example: 2026
+    limit_per_venue: 1000 # Maximum OpenReview notes fetched per venue before reranking. Example: 1000
+    batch_size: 1000 # OpenReview API page size. Example: 1000
+    timeout_seconds: 30 # OpenReview API request timeout. Example: 30
+    aliases:
+      nips: neurips
+    venue_id_patterns:
+      cvpr: CVPR.cc/{year}/Conference
+      eccv: ECCV.cc/{year}/Conference
+      iclr: ICLR.cc/{year}/Conference
+      neurips: NeurIPS.cc/{year}/Conference
+      aaai: AAAI.org/{year}/Conference
+      icml: ICML.cc/{year}/Conference
+    venue_ids: {} # Optional explicit OpenReview venue IDs per alias. Example: {cvpr: ["CVPR.cc/2026/Conference"]}
+
+email:
+  sender: ??? # The email account of the SMTP server that sends you email. Example: abc@qq.com
+  receiver: ??? # The email account that receives the paper list. Example: abc@outlook.com
+  smtp_server: ??? # The SMTP server that sends the email. Ask your email provider (Gmail, QQ, Outlook, ...) for its SMTP server. Example: smtp.qq.com
+  smtp_port: ??? # The port of SMTP server. Example: 465
+  sender_password: ??? # The password of the sender account. Note that it's not necessarily the password for logging in the e-mail client, but the authentication code for SMTP service. Ask your email provider for this. Example: abcdefghijklmn
+
+llm:
+  api:
+    key: ??? # API Key of your LLM API. Example: sk-xxx
+    base_url: ??? # API URL of your LLM API. Example: https://api.openai.com/v1
+  generation_kwargs:
+  # Arguments for the LLM API. See [here](https://platform.openai.com/docs/api-reference/chat/create) for more details.
+    max_tokens: 16384
+    model: ???
+  language: English # Preferred language for the TL;DR. Example: English
+
+reranker:
+  local:
+    model: jinaai/jina-embeddings-v5-text-nano # The Hugging Face model name of the local embedding model. Example: jinaai/jina-embeddings-v5-text-nano
+    encode_kwargs:
+    # The kwargs for the encode method of the local embedding model. Details see [here](https://www.sbert.net/docs/package_reference/SentenceTransformer.html#sentence_transformers.SentenceTransformer.encode)
+      task: retrieval
+      prompt_name: document
+src/zotero_arxiv_daily/retriever/__init__.py
+src/zotero_arxiv_daily/retriever/__init__.py
++1
+-1
+
+from .base import get_retriever_cls
+from . import arxiv_retriever, biorxiv_retriever, medrxiv_retriever
+from . import arxiv_retriever, biorxiv_retriever, medrxiv_retriever, conference_retriever
+src/zotero_arxiv_daily/retriever/conference_retriever.py
+src/zotero_arxiv_daily/retriever/conference_retriever.py
+新
++160
+-0
+
+from __future__ import annotations
+
+import json
+from dataclasses import dataclass
+from typing import Any
+from urllib.error import URLError
+from urllib.parse import urlencode
+from urllib.request import Request, urlopen
+
+from loguru import logger
+
+from ..protocol import Paper
+from .base import BaseRetriever, register_retriever
+
+OPENREVIEW_API2_NOTES_URL = "https://api2.openreview.net/notes"
+OPENREVIEW_API1_NOTES_URL = "https://api.openreview.net/notes"
+OPENREVIEW_FORUM_URL = "https://openreview.net/forum?id={id}"
+OPENREVIEW_PDF_URL = "https://openreview.net/pdf?id={id}"
+
+
+@dataclass
+class OpenReviewPaperItem:
+    note: dict[str, Any]
+    venue: str
+
+
+@register_retriever("conference")
+class ConferenceRetriever(BaseRetriever):
+    """Retrieve accepted conference papers from OpenReview venues."""
+
+    def __init__(self, config):
+        super().__init__(config)
+        if not self.retriever_config.venues:
+            raise ValueError("venues must be specified for conference.")
+
+    def _retrieve_raw_papers(self) -> list[OpenReviewPaperItem]:
+        raw_papers: list[OpenReviewPaperItem] = []
+        seen_note_ids: set[str] = set()
+        limit = int(self.retriever_config.get("limit_per_venue", 1000))
+
+        for venue_name, venue_ids in self._iter_venue_ids():
+            for venue_id in venue_ids:
+                notes = self._get_openreview_notes(venue_id, limit)
+                logger.info(f"Retrieved {len(notes)} notes for {venue_name} ({venue_id})")
+                for note in notes:
+                    note_id = note.get("id")
+                    if not note_id or note_id in seen_note_ids:
+                        continue
+                    seen_note_ids.add(note_id)
+                    raw_papers.append(OpenReviewPaperItem(note=note, venue=venue_name))
+
+        raw_papers.sort(key=lambda item: self._note_sort_timestamp(item.note), reverse=True)
+        if self.config.executor.debug:
+            raw_papers = raw_papers[:10]
+        return raw_papers
+
+    def _iter_venue_ids(self) -> list[tuple[str, list[str]]]:
+        year = str(self.retriever_config.get("year"))
+        venue_id_patterns = dict(self.retriever_config.get("venue_id_patterns", {}))
+        venue_ids = dict(self.retriever_config.get("venue_ids", {}))
+        aliases = dict(self.retriever_config.get("aliases", {}))
+
+        result: list[tuple[str, list[str]]] = []
+        for venue in self.retriever_config.venues:
+            venue_key = aliases.get(str(venue).lower(), str(venue).lower())
+            configured_ids = venue_ids.get(venue_key)
+            if configured_ids is None:
+                pattern = venue_id_patterns.get(venue_key)
+                if pattern is None:
+                    raise ValueError(f"No OpenReview venue ID pattern configured for {venue}")
+                configured_ids = [pattern.format(year=year)]
+            elif isinstance(configured_ids, str):
+                configured_ids = [configured_ids]
+            result.append((venue_key, list(configured_ids)))
+        return result
+
+    def _get_openreview_notes(self, venue_id: str, limit: int) -> list[dict[str, Any]]:
+        for api_url in (OPENREVIEW_API2_NOTES_URL, OPENREVIEW_API1_NOTES_URL):
+            try:
+                notes = self._fetch_all_notes(api_url, venue_id, limit)
+            except (OSError, URLError, TimeoutError, json.JSONDecodeError) as exc:
+                logger.warning(f"Failed to fetch {venue_id} from {api_url}: {exc}")
+                continue
+            if notes:
+                return notes
+        return []
+
+    def _fetch_all_notes(self, api_url: str, venue_id: str, limit: int) -> list[dict[str, Any]]:
+        notes: list[dict[str, Any]] = []
+        offset = 0
+        batch_size = min(limit, int(self.retriever_config.get("batch_size", 1000)))
+        timeout = int(self.retriever_config.get("timeout_seconds", 30))
+
+        while offset < limit:
+            params = urlencode({"content.venueid": venue_id, "limit": batch_size, "offset": offset})
+            request = Request(
+                f"{api_url}?{params}",
+                headers={"User-Agent": "zotero-arxiv-daily/1.0"},
+            )
+            with urlopen(request, timeout=timeout) as response:
+                payload = json.load(response)
+            batch = payload.get("notes", [])
+            notes.extend(batch)
+            if len(batch) < batch_size:
+                break
+            offset += batch_size
+        return notes
+
+    def convert_to_paper(self, raw_paper: OpenReviewPaperItem) -> Paper | None:
+        note = raw_paper.note
+        content = note.get("content", {})
+        title = self._content_value(content, "title")
+        abstract = self._content_value(content, "abstract") or ""
+        if not title:
+            logger.warning(f"Skipping OpenReview note without title: {note.get('id')}")
+            return None
+
+        authors = self._content_value(content, "authors") or []
+        if isinstance(authors, str):
+            authors = [authors]
+        authors = [str(author) for author in authors]
+
+        note_id = note.get("id")
+        url = OPENREVIEW_FORUM_URL.format(id=note_id) if note_id else "https://openreview.net"
+        pdf_url = self._pdf_url(note)
+        venue = self._content_value(content, "venue") or raw_paper.venue.upper()
+        full_text = f"Venue: {venue}\n\nAbstract: {abstract}" if abstract else f"Venue: {venue}"
+
+        return Paper(
+            source=self.name,
+            title=title,
+            authors=authors,
+            abstract=abstract,
+            url=url,
+            pdf_url=pdf_url,
+            full_text=full_text,
+        )
+
+    @staticmethod
+    def _content_value(content: dict[str, Any], key: str) -> Any:
+        value = content.get(key)
+        if isinstance(value, dict) and "value" in value:
+            return value["value"]
+        return value
+
+    def _pdf_url(self, note: dict[str, Any]) -> str | None:
+        content = note.get("content", {})
+        pdf = self._content_value(content, "pdf")
+        if isinstance(pdf, str) and pdf.startswith("http"):
+            return pdf
+        note_id = note.get("id")
+        return OPENREVIEW_PDF_URL.format(id=note_id) if note_id else None
+
+    @staticmethod
+    def _note_sort_timestamp(note: dict[str, Any]) -> int:
+        for key in ("pdate", "tcdate", "tmdate", "cdate", "mdate"):
+            value = note.get(key)
+            if isinstance(value, int):
+                return value
+        return 0
+
+from io import BytesIO
+
+from zotero_arxiv_daily.retriever.conference_retriever import ConferenceRetriever
+
+
+class MockResponse(BytesIO):
+    def __enter__(self):
+        return self
+
+    def __exit__(self, exc_type, exc, tb):
+        self.close()
+
+
+def test_conference_retriever_fetches_openreview_notes(config, monkeypatch):
+    config.source.conference.venues = ["iclr", "nips"]
+    config.source.conference.year = 2025
+    config.source.conference.limit_per_venue = 10
+    config.source.conference.batch_size = 10
+
+    responses = {
+        "content.venueid=ICLR.cc%2F2025%2FConference": b'{"notes":[{"id":"iclr1","pdate":2,"content":{"title":{"value":"ICLR Paper"},"abstract":{"value":"An ICLR abstract."},"authors":{"value":["Alice","Bob"]},"venueid":{"value":"ICLR.cc/2025/Conference"}}}]}',
+        "content.venueid=NeurIPS.cc%2F2025%2FConference": b'{"notes":[{"id":"nips1","pdate":1,"content":{"title":{"value":"NeurIPS Paper"},"abstract":{"value":"A NeurIPS abstract."},"authors":{"value":["Carol"]},"venueid":{"value":"NeurIPS.cc/2025/Conference"}}}]}',
+    }
+
+    def mock_urlopen(request, timeout):
+        url = request.full_url
+        for venue_query, payload in responses.items():
+            if venue_query in url:
+                return MockResponse(payload)
+        return MockResponse(b'{"notes":[]}')
+
+    monkeypatch.setattr("zotero_arxiv_daily.retriever.conference_retriever.urlopen", mock_urlopen)
+
+    retriever = ConferenceRetriever(config)
+    raw_papers = retriever._retrieve_raw_papers()
+    papers = [retriever.convert_to_paper(raw_paper) for raw_paper in raw_papers]
+
+    assert [paper.title for paper in papers] == ["ICLR Paper", "NeurIPS Paper"]
+    assert papers[0].authors == ["Alice", "Bob"]
+    assert papers[0].url == "https://openreview.net/forum?id=iclr1"
+    assert papers[0].pdf_url == "https://openreview.net/pdf?id=iclr1"
+
+-- 
+2.43.0
