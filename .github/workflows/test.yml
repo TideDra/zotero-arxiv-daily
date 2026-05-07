@@ -9,8 +9,8 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
         with:
-          repository: ${{ vars.REPOSITORY }}
-          ref: ${{ vars.REF }}
+          repository: ${{ vars.REPOSITORY || github.repository }}
+          ref: ${{ vars.REF || github.ref }}
 
       - name: Setup uv
         uses: astral-sh/setup-uv@v3
