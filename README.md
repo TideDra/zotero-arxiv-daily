@@ -192,8 +192,6 @@ This project is in active development. You can subscribe this repo via `Watch` s
 - The recommendation algorithm is very simple, it may not accurately reflect your interest. Welcome better ideas for improving the algorithm!
 - High `MAX_PAPER_NUM` can lead the execution time exceed the limitation of Github Action runner (6h per execution for public repo, and 2000 mins per month for private repo). Commonly, the quota given to public repo is definitely enough for individual use. If you have special requirements, you can deploy the workflow in your own server, or use a self-hosted Github Action runner, or pay for the exceeded execution time.
 
-## 👯‍♂️ Contribution
-Any issue and PR are welcomed! But remember that **each PR should merge to the `dev` branch**.
 
 ## 📃 License
 Distributed under the AGPLv3 License. See `LICENSE` for detail.

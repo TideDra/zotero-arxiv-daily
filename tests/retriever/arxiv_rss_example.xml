@@ -67,3 +67,41 @@ Abstract: Time series forecasting plays a vital role in critical domains like en
     <title>SVDformer: Direction-Aware Spectral Graph Embedding Learning via SVD and Transformer</title>
     <updated>2025-08-20T04:00:19.899011+00:00</updated>
     <link href="https://arxiv.org/abs/2508.13435" rel="alternate" type="text/html"/>
+    <summary>arXiv:2508.13435v1 Announce Type: cross
+Abstract: Spectral graph embedding methods are widely used.</summary>
+    <category term="cs.LG"/>
+    <category term="cs.AI"/>
+    <published>2025-08-20T00:00:00-04:00</published>
+    <arxiv:announce_type>cross</arxiv:announce_type>
+    <dc:rights>http://creativecommons.org/licenses/by/4.0/</dc:rights>
+    <dc:creator>Some Author</dc:creator>
+  </entry>
+  <entry>
+    <id>oai:arXiv.org:2508.14001v1</id>
+    <title>Neural Architecture Search for Efficient Transformers</title>
+    <updated>2025-08-20T04:00:19.900000+00:00</updated>
+    <link href="https://arxiv.org/abs/2508.14001" rel="alternate" type="text/html"/>
+    <summary>arXiv:2508.14001v1 Announce Type: new
+Abstract: We propose a neural architecture search method for efficient transformers.</summary>
+    <category term="cs.AI"/>
+    <category term="cs.LG"/>
+    <published>2025-08-20T00:00:00-04:00</published>
+    <arxiv:announce_type>new</arxiv:announce_type>
+    <dc:rights>http://creativecommons.org/licenses/by/4.0/</dc:rights>
+    <dc:creator>Alice Smith, Bob Jones</dc:creator>
+  </entry>
+  <entry>
+    <id>oai:arXiv.org:2508.14002v1</id>
+    <title>Reward Shaping in Multi-Agent Reinforcement Learning</title>
+    <updated>2025-08-20T04:00:19.901000+00:00</updated>
+    <link href="https://arxiv.org/abs/2508.14002" rel="alternate" type="text/html"/>
+    <summary>arXiv:2508.14002v1 Announce Type: new
+Abstract: We study reward shaping techniques in cooperative multi-agent settings.</summary>
+    <category term="cs.AI"/>
+    <category term="cs.MA"/>
+    <published>2025-08-20T00:00:00-04:00</published>
+    <arxiv:announce_type>new</arxiv:announce_type>
+    <dc:rights>http://creativecommons.org/licenses/by/4.0/</dc:rights>
+    <dc:creator>Carol White, Dave Brown</dc:creator>
+  </entry>
+</feed>

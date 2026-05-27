@@ -37,9 +37,9 @@ url = "https://download.pytorch.org/whl/cpu"
 explicit = true
 
 [tool.pytest.ini_options]
-addopts = "-m 'not ci'"
+addopts = "-m 'not slow'"
 markers = [
-    "ci: tests that only run in CI (require external services)",
+    "slow: tests that are slow (e.g. download models)",
 ]
 filterwarnings = [
     "ignore::DeprecationWarning:multiprocessing",
@@ -49,4 +49,5 @@ filterwarnings = [
 dev = [
     "ipykernel>=7.1.0",
     "pytest>=8.4.1",
+    "pytest-cov>=6.0",
 ]
