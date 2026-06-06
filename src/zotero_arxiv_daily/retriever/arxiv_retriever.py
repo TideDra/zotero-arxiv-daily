@@ -19,6 +19,7 @@ T = TypeVar("T")
 DOWNLOAD_TIMEOUT = (10, 60)
 PDF_EXTRACT_TIMEOUT = 180
 TAR_EXTRACT_TIMEOUT = 180
+RETRYABLE_ARXIV_STATUSES = {429, 500, 502, 503, 504}
 
 
 def _download_file(url: str, path: str) -> None:
@@ -137,19 +138,31 @@ class ArxivRetriever(BaseRetriever):
         batch_retry_delay = 30
         for i in range(0, len(all_paper_ids), 20):
             search = arxiv.Search(id_list=all_paper_ids[i:i + 20])
+            batch_succeeded = False
             for attempt in range(max_batch_retries):
                 try:
                     batch = list(client.results(search))
                     bar.update(len(batch))
                     raw_papers.extend(batch)
+                    batch_succeeded = True
                     break
                 except arxiv.HTTPError as exc:
-                    if exc.status == 429 and attempt < max_batch_retries - 1:
+                    status = getattr(exc, "status", None)
+                    if status in RETRYABLE_ARXIV_STATUSES and attempt < max_batch_retries - 1:
                         wait = batch_retry_delay * (attempt + 1)
-                        logger.warning(f"arXiv API 429 on batch {i // 20}, retry {attempt + 1}/{max_batch_retries} in {wait}s")
+                        logger.warning(
+                            f"arXiv API {status} on batch {i // 20}, retry {attempt + 1}/{max_batch_retries} in {wait}s"
+                        )
                         sleep(wait)
+                    elif status in RETRYABLE_ARXIV_STATUSES:
+                        logger.warning(
+                            f"Skipping batch {i // 20} after {max_batch_retries} retries due to arXiv API {status}"
+                        )
+                        break
                     else:
                         raise
+            if not batch_succeeded:
+                logger.warning(f"No papers retrieved for batch {i // 20}")
             if i + 20 < len(all_paper_ids):
                 sleep(3)
         bar.close()

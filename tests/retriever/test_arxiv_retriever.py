@@ -4,6 +4,7 @@ import time
 from types import SimpleNamespace
 
 import feedparser
+import pytest
 
 from zotero_arxiv_daily.retriever.arxiv_retriever import ArxivRetriever, _run_with_hard_timeout
 import zotero_arxiv_daily.retriever.arxiv_retriever as arxiv_retriever
@@ -88,3 +89,59 @@ def test_run_with_hard_timeout_returns_none_on_failure(monkeypatch):
     )
     assert result is None
     assert "boom" in warnings[0]
+
+
+def test_retrieve_raw_papers_skips_batch_after_retryable_http_error(config, mock_feedparser, monkeypatch):
+    from omegaconf import open_dict
+
+    with open_dict(config):
+        config.executor.debug = True
+
+    monkeypatch.setattr(arxiv_retriever, "sleep", lambda _: None)
+    warnings: list[str] = []
+    monkeypatch.setattr(arxiv_retriever, "logger", SimpleNamespace(warning=warnings.append))
+
+    class FakeHTTPError(Exception):
+        def __init__(self, status):
+            self.status = status
+
+    class FakeClient:
+        def __init__(self, **kw):
+            pass
+
+        def results(self, search):
+            raise FakeHTTPError(503)
+
+    monkeypatch.setattr(arxiv_retriever.arxiv, "HTTPError", FakeHTTPError)
+    monkeypatch.setattr(arxiv_retriever.arxiv, "Client", FakeClient)
+
+    retriever = ArxivRetriever(config)
+    assert retriever._retrieve_raw_papers() == []
+    assert any("Skipping batch 0 after 5 retries due to arXiv API 503" in warning for warning in warnings)
+
+
+def test_retrieve_raw_papers_raises_non_retryable_http_error(config, mock_feedparser, monkeypatch):
+    from omegaconf import open_dict
+
+    with open_dict(config):
+        config.executor.debug = True
+
+    monkeypatch.setattr(arxiv_retriever, "sleep", lambda _: None)
+
+    class FakeHTTPError(Exception):
+        def __init__(self, status):
+            self.status = status
+
+    class FakeClient:
+        def __init__(self, **kw):
+            pass
+
+        def results(self, search):
+            raise FakeHTTPError(400)
+
+    monkeypatch.setattr(arxiv_retriever.arxiv, "HTTPError", FakeHTTPError)
+    monkeypatch.setattr(arxiv_retriever.arxiv, "Client", FakeClient)
+
+    retriever = ArxivRetriever(config)
+    with pytest.raises(FakeHTTPError):
+        retriever._retrieve_raw_papers()
