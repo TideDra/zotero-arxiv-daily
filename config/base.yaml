@@ -49,3 +49,7 @@ executor:
   max_paper_num: 100 # The maximum number of the papers presented in the email. Example: 100
   source: ??? # The sources of papers to retrieve. Example: ['arxiv','biorxiv','medrxiv']
   reranker: local # The reranker to use. Example: 'local' or 'api'
+
+feishu:
+  webhook_url: ??? # The webhook URL of your Feishu custom bot. Example: https://open.feishu.cn/open-apis/bot/v2/hook/xxx
+  enabled: true # Whether to send Feishu notification. Set to false to disable.
