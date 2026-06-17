@@ -1,6 +1,7 @@
 from zotero_arxiv_daily.retriever.arxiv_retriever import ArxivRetriever
+from zotero_arxiv_daily.retriever.arxiv_retriever import RSSPaper
+from zotero_arxiv_daily.retriever.arxiv_retriever import extract_text_from_pdf_with_timeout
 import feedparser
-import pickle
 
 def test_arxiv_retriever(config, monkeypatch):
 
@@ -19,3 +20,52 @@ def test_arxiv_retriever(config, monkeypatch):
     paper_titles = [i.title for i in papers]
     parsed_titles = [i.title for i in parsed_results]
     assert set(paper_titles) == set(parsed_titles)
+
+def test_extract_text_from_pdf_timeout_returns_none(monkeypatch):
+    paper = RSSPaper(
+        entry_id="1234.5678",
+        title="Stuck PDF",
+        summary="summary",
+        authors=["A"],
+        pdf_url="https://example.com/paper.pdf",
+    )
+
+    class FakeQueue:
+        def get_nowait(self):
+            raise Exception("queue should be empty on timeout")
+
+    class FakeProcess:
+        def __init__(self, target, args):
+            self.target = target
+            self.args = args
+            self.terminated = False
+
+        def start(self):
+            pass
+
+        def join(self, timeout=None):
+            pass
+
+        def is_alive(self):
+            return True
+
+        def terminate(self):
+            self.terminated = True
+
+    class FakeContext:
+        def __init__(self):
+            self.process = None
+
+        def Queue(self, maxsize=1):
+            return FakeQueue()
+
+        def Process(self, target, args):
+            self.process = FakeProcess(target, args)
+            return self.process
+
+    fake_context = FakeContext()
+    monkeypatch.setattr("zotero_arxiv_daily.retriever.arxiv_retriever.get_context", lambda method: fake_context)
+
+    assert extract_text_from_pdf_with_timeout(paper) is None
+    assert fake_context.process is not None
+    assert fake_context.process.terminated is True

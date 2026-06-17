@@ -4,7 +4,8 @@ from arxiv import Result as ArxivResult
 from ..protocol import Paper
 from ..utils import extract_markdown_from_pdf, extract_tex_code_from_tar
 from tempfile import TemporaryDirectory
-from concurrent.futures import ThreadPoolExecutor, TimeoutError
+from multiprocessing import get_context
+from queue import Empty
 from dataclasses import dataclass
 import feedparser
 from urllib.request import urlretrieve
@@ -184,12 +185,7 @@ class ArxivRetriever(BaseRetriever):
         authors = raw_paper.authors if isinstance(raw_paper, RSSPaper) else [a.name for a in raw_paper.authors]
         abstract = raw_paper.summary
         pdf_url = raw_paper.pdf_url
-        try:
-            with ThreadPoolExecutor(max_workers=1) as pool:
-                full_text = pool.submit(extract_text_from_pdf, raw_paper).result(timeout=PDF_EXTRACT_TIMEOUT)
-        except TimeoutError:
-            logger.warning(f"PDF extraction timed out for {raw_paper.title}")
-            full_text = None
+        full_text = extract_text_from_pdf_with_timeout(raw_paper)
         if full_text is None:
             full_text = extract_text_from_tar(raw_paper)
         return Paper(
@@ -202,6 +198,31 @@ class ArxivRetriever(BaseRetriever):
             full_text=full_text
         )
 
+def extract_text_from_pdf_with_timeout(paper: ArxivResult | RSSPaper) -> str | None:
+    ctx = get_context("spawn")
+    queue = ctx.Queue(maxsize=1)
+    proc = ctx.Process(target=_extract_text_from_pdf_worker, args=(paper, queue))
+    proc.start()
+    proc.join(PDF_EXTRACT_TIMEOUT)
+
+    if proc.is_alive():
+        proc.terminate()
+        proc.join()
+        logger.warning(f"PDF extraction timed out for {paper.title}")
+        return None
+
+    try:
+        ok, payload = queue.get_nowait()
+    except Empty:
+        logger.warning(f"PDF extraction exited without returning content for {paper.title}")
+        return None
+
+    if ok:
+        return payload
+
+    logger.warning(f"Failed to extract full text of {paper.title} from pdf: {payload}")
+    return None
+
 def extract_text_from_pdf(paper: ArxivResult) -> str | None:
     with TemporaryDirectory() as temp_dir:
         path = os.path.join(temp_dir, "paper.pdf")
@@ -209,12 +230,13 @@ def extract_text_from_pdf(paper: ArxivResult) -> str | None:
             logger.warning(f"No PDF URL available for {paper.title}")
             return None
         urlretrieve(paper.pdf_url, path)
-        try:
-            full_text = extract_markdown_from_pdf(path)
-        except Exception as e:
-            logger.warning(f"Failed to extract full text of {paper.title} from pdf: {e}")
-            full_text = None
-        return full_text
+        return extract_markdown_from_pdf(path)
+
+def _extract_text_from_pdf_worker(paper: ArxivResult | RSSPaper, queue) -> None:
+    try:
+        queue.put((True, extract_text_from_pdf(paper)))
+    except Exception as e:
+        queue.put((False, str(e)))
 
 def extract_text_from_tar(paper: ArxivResult) -> str | None:
     with TemporaryDirectory() as temp_dir:
