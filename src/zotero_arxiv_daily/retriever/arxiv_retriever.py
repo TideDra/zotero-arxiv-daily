@@ -8,13 +8,15 @@ from multiprocessing import get_context
 from queue import Empty
 from dataclasses import dataclass
 import feedparser
-from urllib.request import urlretrieve
+from urllib.request import urlopen
 from tqdm import tqdm
 import os
 import time
+import shutil
 from loguru import logger
 
 PDF_EXTRACT_TIMEOUT = 180
+DOWNLOAD_TIMEOUT = 30
 INITIAL_BATCH_SIZE = 20
 MAX_BATCH_FETCH_ATTEMPTS = 4
 BACKOFF_BASE_SECONDS = 15
@@ -199,7 +201,7 @@ class ArxivRetriever(BaseRetriever):
         )
 
 def extract_text_from_pdf_with_timeout(paper: ArxivResult | RSSPaper) -> str | None:
-    ctx = get_context("spawn")
+    ctx = get_context("fork" if os.name == "posix" else "spawn")
     queue = ctx.Queue(maxsize=1)
     proc = ctx.Process(target=_extract_text_from_pdf_worker, args=(paper, queue))
     proc.start()
@@ -229,7 +231,7 @@ def extract_text_from_pdf(paper: ArxivResult) -> str | None:
         if paper.pdf_url is None:
             logger.warning(f"No PDF URL available for {paper.title}")
             return None
-        urlretrieve(paper.pdf_url, path)
+        download_url_to_file(paper.pdf_url, path, DOWNLOAD_TIMEOUT)
         return extract_markdown_from_pdf(path)
 
 def _extract_text_from_pdf_worker(paper: ArxivResult | RSSPaper, queue) -> None:
@@ -245,7 +247,7 @@ def extract_text_from_tar(paper: ArxivResult) -> str | None:
         if source_url is None:
             logger.warning(f"No source URL available for {paper.title}")
             return None
-        urlretrieve(source_url, path)
+        download_url_to_file(source_url, path, DOWNLOAD_TIMEOUT)
         try:
             file_contents = extract_tex_code_from_tar(path, paper.entry_id)
             if "all" not in file_contents:
@@ -256,3 +258,7 @@ def extract_text_from_tar(paper: ArxivResult) -> str | None:
             logger.warning(f"Failed to extract full text of {paper.title} from tar: {e}")
             full_text = None
         return full_text
+
+def download_url_to_file(url: str, path: str, timeout: int) -> None:
+    with urlopen(url, timeout=timeout) as response, open(path, "wb") as out_file:
+        shutil.copyfileobj(response, out_file)
