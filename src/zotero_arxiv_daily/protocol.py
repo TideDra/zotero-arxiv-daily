@@ -8,6 +8,9 @@ from loguru import logger
 import json
 RawPaperItem = TypeVar('RawPaperItem')
 
+# Default section labels for the structured TLDR, used when config omits them.
+DEFAULT_TLDR_LABELS = {"problem": "Problem", "idea": "Idea", "result": "Result"}
+
 @dataclass
 class Paper:
     source: str
@@ -23,39 +26,89 @@ class Paper:
 
     def _generate_tldr_with_llm(self, openai_client:OpenAI,llm_params:dict) -> str:
         lang = llm_params.get('language', 'English')
-        prompt = f"Given the following information of a paper, generate a one-sentence TLDR summary in {lang}:\n\n"
-        if self.title:
-            prompt += f"Title:\n {self.title}\n\n"
-
-        if self.abstract:
-            prompt += f"Abstract: {self.abstract}\n\n"
-
-        if self.full_text:
-            prompt += f"Preview of main content:\n {self.full_text}\n\n"
 
         if not self.full_text and not self.abstract:
             logger.warning(f"Neither full text nor abstract is provided for {self.url}")
             return "Failed to generate TLDR. Neither full text nor abstract is provided"
-        
-        # use gpt-4o tokenizer for estimation
-        enc = tiktoken.encoding_for_model("gpt-4o")
-        prompt_tokens = enc.encode(prompt)
-        prompt_tokens = prompt_tokens[:4000]  # truncate to 4000 tokens
-        prompt = enc.decode(prompt_tokens)
-        
+
+        # Assemble the paper context, then truncate the context (not the instructions) to 4000 tokens.
+        context = ""
+        if self.title:
+            context += f"Title:\n {self.title}\n\n"
+        if self.abstract:
+            context += f"Abstract: {self.abstract}\n\n"
+        if self.full_text:
+            context += f"Preview of main content:\n {self.full_text}\n\n"
+        enc = tiktoken.encoding_for_model("gpt-4o")  # gpt-4o tokenizer for estimation
+        context = enc.decode(enc.encode(context)[:4000])
+
+        tldr_cfg = llm_params.get('tldr', {}) or {}
+        style = tldr_cfg.get('style', 'structured')
+        generation_kwargs = llm_params.get('generation_kwargs', {})
+
+        if style == 'plain':
+            system_prompt = (
+                "You are an assistant who perfectly summarizes scientific paper, and gives the "
+                f"core idea of the paper to the user. Your answer should be in {lang}."
+            )
+            user_prompt = (
+                f"Given the following information of a paper, generate a one-sentence TLDR "
+                f"summary in {lang}:\n\n{context}"
+            )
+            response = openai_client.chat.completions.create(
+                messages=[
+                    {"role": "system", "content": system_prompt},
+                    {"role": "user", "content": user_prompt},
+                ],
+                **generation_kwargs,
+            )
+            return response.choices[0].message.content
+
+        # style == 'structured' (default): Problem / Idea / Result in plain language.
+        max_words = tldr_cfg.get('max_words', 60)
+        system_prompt = (
+            "You explain scientific papers to a curious non-expert. Use plain, simple language, "
+            "and add a short everyday analogy or example only when it genuinely aids understanding. "
+            "Be concrete and avoid jargon. "
+            f"Write your answer in {lang}. "
+            "Respond with ONLY a JSON object and nothing else: no markdown, no code fences, no commentary."
+        )
+        user_prompt = (
+            "Summarize the following paper as a JSON object with exactly these keys:\n"
+            '- "problem": one plain sentence describing the problem or gap the paper tackles.\n'
+            '- "idea": the core idea or approach in simple terms, with a brief example if it helps.\n'
+            '- "result": the main outcome or finding if the paper states one, otherwise an empty string "".\n\n'
+            f"Keep the entire summary under {max_words} words. Write the values in {lang}.\n\n"
+            f"{context}"
+        )
         response = openai_client.chat.completions.create(
             messages=[
-                {
-                    "role": "system",
-                    "content": f"You are an assistant who perfectly summarizes scientific paper, and gives the core idea of the paper to the user. Your answer should be in {lang}.",
-                },
-                {"role": "user", "content": prompt},
+                {"role": "system", "content": system_prompt},
+                {"role": "user", "content": user_prompt},
             ],
-            **llm_params.get('generation_kwargs', {})
+            **generation_kwargs,
         )
-        tldr = response.choices[0].message.content
-        return tldr
-    
+        return self._format_structured_tldr(response.choices[0].message.content, tldr_cfg)
+
+    def _format_structured_tldr(self, raw:str, tldr_cfg:dict) -> str:
+        # Robustly extract the JSON object, mirroring the affiliation parsing approach.
+        match = re.search(r'\{.*\}', raw, flags=re.DOTALL)
+        if match is None:
+            raise ValueError(f"No JSON object found in TLDR response: {raw!r}")
+        data = json.loads(match.group(0))
+
+        problem = str(data.get("problem", "") or "").strip()
+        idea = str(data.get("idea", "") or "").strip()
+        result = str(data.get("result", "") or "").strip()
+        if not problem and not idea:
+            raise ValueError(f"TLDR JSON missing both problem and idea: {raw!r}")
+
+        labels = {**DEFAULT_TLDR_LABELS, **dict(tldr_cfg.get('labels', {}) or {})}
+        fields = [("problem", problem), ("idea", idea), ("result", result)]
+        lines = [f"<strong>{labels.get(key, key.capitalize())}:</strong> {value}"
+                 for key, value in fields if value]
+        return "<br>".join(lines)
+
     def generate_tldr(self, openai_client:OpenAI,llm_params:dict) -> str:
         try:
             tldr = self._generate_tldr_with_llm(openai_client,llm_params)

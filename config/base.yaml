@@ -29,6 +29,13 @@ llm:
     max_tokens: 16384
     model: ???
   language: English # Preferred language for the TL;DR. Example: English
+  tldr:
+    style: structured # 'structured' = Problem/Idea/Result blocks in plain language; 'plain' = legacy one-sentence TLDR. Example: plain
+    max_words: 60 # Brevity budget for the whole TLDR. Example: 80
+    labels: # Section labels shown in the email. Localize these to match `language`. Example: {problem: 问题, idea: 思路, result: 结果}
+      problem: Problem
+      idea: Idea
+      result: Result
 
 reranker:
   local:

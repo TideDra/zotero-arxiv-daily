@@ -12,7 +12,13 @@ from zotero_arxiv_daily.protocol import CorpusPaper, Paper
 
 _AFFILIATION_MARKER = "You are an assistant who perfectly extracts affiliations"
 _AFFILIATION_RESPONSE = '["TsingHua University","Peking University"]'
-_TLDR_RESPONSE = "Hello! How can I assist you today?"
+# Structured TLDR schema returned by the default 'structured' style.
+_TLDR_RESPONSE = (
+    '{"problem": "Readers waste time re-reading dense paper abstracts.", '
+    '"idea": "Ask an LLM to rewrite each abstract as a plain-language problem/idea/result note, '
+    'like a friend explaining it over coffee.", '
+    '"result": "TLDRs become far easier to skim."}'
+)
 
 
 def _make_chat_response(content: str) -> SimpleNamespace:
