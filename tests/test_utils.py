@@ -186,6 +186,23 @@ def test_send_email_falls_back_to_plain(config, monkeypatch):
     assert len(sent) == 1
 
 
+def test_send_email_returns_false_on_smtp_disconnect(config, monkeypatch):
+    class StubSMTPDisconnect:
+        def __init__(self, *a, **kw):
+            pass
+        def starttls(self):
+            pass
+        def login(self, u, p):
+            raise smtplib.SMTPServerDisconnected("Connection unexpectedly closed")
+        def sendmail(self, s, r, m):
+            raise AssertionError("sendmail should not be called when login fails")
+        def quit(self):
+            pass
+
+    monkeypatch.setattr(smtplib, "SMTP", StubSMTPDisconnect)
+    assert send_email(config, "<html>disconnect</html>") is False
+
+
 # ---------------------------------------------------------------------------
 # extract_tex_code_from_tar
 # ---------------------------------------------------------------------------
