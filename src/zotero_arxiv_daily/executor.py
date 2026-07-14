@@ -120,7 +120,11 @@ class Executor:
             return
         logger.info("Sending email...")
         email_content = render_email(reranked_papers)
-        email_sent = send_email(self.config, email_content)
+        try:
+            email_sent = send_email(self.config, email_content)
+        except Exception as e:
+            logger.warning(f"Unexpected error while sending email. {e}")
+            email_sent = False
         if email_sent:
             logger.info("Email sent successfully")
         else:
