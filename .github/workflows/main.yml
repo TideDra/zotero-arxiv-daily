@@ -24,10 +24,36 @@ jobs:
           SENDER: ${{ secrets.SENDER }}
           RECEIVER: ${{ secrets.RECEIVER }}
           SENDER_PASSWORD: ${{ secrets.SENDER_PASSWORD }}
+          SMTP_SERVER: ${{ secrets.SMTP_SERVER }}
+          SMTP_PORT: ${{ secrets.SMTP_PORT }}
           OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
           OPENAI_API_BASE: ${{ secrets.OPENAI_API_BASE }}
           CUSTOM_CONFIG: ${{ vars.CUSTOM_CONFIG }}
         run: |
+          masked_sender() {
+            local value="${1:-}"
+            if [ -z "$value" ]; then
+              echo "<unset>"
+            elif [[ "$value" == *"@"* ]]; then
+              local local_part="${value%@*}"
+              local domain="${value#*@}"
+              echo "${local_part:0:1}***@${domain}"
+            else
+              echo "***"
+            fi
+          }
+
+          echo "SMTP diagnostics:"
+          echo "  SMTP_SERVER=${SMTP_SERVER:-<unset>}"
+          echo "  SMTP_PORT=${SMTP_PORT:-<unset>}"
+          echo "  SENDER=$(masked_sender "$SENDER")"
+          echo "  RECEIVER=$(masked_sender "$RECEIVER")"
+          if [ -n "${SENDER_PASSWORD:-}" ]; then
+            echo "  SENDER_PASSWORD=SET"
+          else
+            echo "  SENDER_PASSWORD=UNSET"
+          fi
+
           printf "%b\n" "$CUSTOM_CONFIG" > config/custom.yaml
           echo "Use custom config: "
           cat config/custom.yaml
