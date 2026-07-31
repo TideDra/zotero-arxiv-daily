@@ -24,3 +24,6 @@ source:
 executor:
   debug: ${oc.env:DEBUG,null}
   source: ['arxiv']
+
+feishu:
+  webhook_url: ${oc.env:FEISHU_WEBHOOK_URL}
