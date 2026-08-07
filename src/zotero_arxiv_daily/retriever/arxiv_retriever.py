@@ -13,12 +13,14 @@ from time import sleep
 from typing import Any, Callable, TypeVar
 from loguru import logger
 import requests
+from datetime import datetime, timedelta, timezone
 
 T = TypeVar("T")
 
 DOWNLOAD_TIMEOUT = (10, 60)
 PDF_EXTRACT_TIMEOUT = 180
 TAR_EXTRACT_TIMEOUT = 180
+HTML_TIMEOUT = (10, 30)
 
 
 def _download_file(url: str, path: str) -> None:
@@ -87,9 +89,11 @@ def _extract_text_from_pdf_worker(pdf_url: str) -> str:
 def _extract_text_from_html_worker(html_url: str) -> str | None:
     import trafilatura
 
-    downloaded = trafilatura.fetch_url(html_url)
-    if downloaded is None:
-        raise ValueError(f"Failed to download HTML from {html_url}")
+    response = requests.get(html_url, timeout=HTML_TIMEOUT)
+    if response.status_code == 404:
+        return None
+    response.raise_for_status()
+    downloaded = response.text
     text = trafilatura.extract(downloaded, include_comments=False, include_tables=False)
     if not text:
         raise ValueError(f"No text extracted from {html_url}")
@@ -113,6 +117,44 @@ class ArxivRetriever(BaseRetriever):
         if self.config.source.arxiv.category is None:
             raise ValueError("category must be specified for arxiv.")
 
+    def _build_api_query(self) -> str:
+        categories = [f"cat:{category}" for category in self.config.source.arxiv.category]
+        return " OR ".join(categories)
+
+    def _fallback_retrieve_raw_papers(self, client: arxiv.Client) -> list[ArxivResult]:
+        logger.warning("arXiv RSS feed returned no entries. Falling back to arXiv API category search.")
+        search = arxiv.Search(
+            query=self._build_api_query(),
+            max_results=200,
+            sort_by=arxiv.SortCriterion.SubmittedDate,
+        )
+        results = list(client.results(search))
+        if len(results) == 0:
+            return []
+
+        newest_published = max(result.published for result in results)
+        target_date = newest_published.date()
+        earliest_allowed = datetime.combine(
+            target_date - timedelta(days=1),
+            datetime.min.time(),
+            tzinfo=timezone.utc,
+        )
+
+        include_cross_list = self.config.source.arxiv.get("include_cross_list", False)
+        filtered_results = []
+        subscribed_categories = set(self.config.source.arxiv.category)
+        for result in results:
+            if result.published < earliest_allowed:
+                continue
+            primary_category = getattr(result, "primary_category", None)
+            if not include_cross_list and primary_category not in subscribed_categories:
+                continue
+            filtered_results.append(result)
+
+        if self.config.executor.debug:
+            filtered_results = filtered_results[:10]
+        return filtered_results
+
     def _retrieve_raw_papers(self) -> list[ArxivResult]:
         client = arxiv.Client(num_retries=10, delay_seconds=10)
         query = '+'.join(self.config.source.arxiv.category)
@@ -128,6 +170,8 @@ class ArxivRetriever(BaseRetriever):
             for i in feed.entries
             if i.get("arxiv_announce_type", "new") in allowed_announce_types
         ]
+        if len(all_paper_ids) == 0:
+            return self._fallback_retrieve_raw_papers(client)
         if self.config.executor.debug:
             all_paper_ids = all_paper_ids[:10]
 
@@ -178,7 +222,7 @@ class ArxivRetriever(BaseRetriever):
 
 
 def extract_text_from_html(paper: ArxivResult) -> str | None:
-    html_url = paper.entry_id.replace("/abs/", "/html/")
+    html_url = paper.entry_id.replace("http://", "https://").replace("/abs/", "/html/")
     try:
         return _extract_text_from_html_worker(html_url)
     except Exception as exc:

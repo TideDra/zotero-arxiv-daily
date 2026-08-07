@@ -28,6 +28,7 @@ jobs:
           OPENAI_API_BASE: ${{ secrets.OPENAI_API_BASE }}
           CUSTOM_CONFIG: ${{ vars.CUSTOM_CONFIG }}
         run: |
+          export HYDRA_FULL_ERROR=1
           printf "%b\n" "$CUSTOM_CONFIG" > config/custom.yaml
           echo "Use custom config: "
           cat config/custom.yaml
