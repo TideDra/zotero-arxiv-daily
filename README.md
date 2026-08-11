@@ -89,6 +89,7 @@ llm:
   api:
     key: ${oc.env:OPENAI_API_KEY}
     base_url: ${oc.env:OPENAI_API_BASE}
+    user_agent: null
   generation_kwargs:
     model: gpt-4o-mini
 
@@ -102,6 +103,9 @@ executor:
   source: ['arxiv']
 ```
 Set `source.arxiv.include_cross_list: true` if you want cross-listed papers included.
+
+By default, `llm.api.user_agent` is `null`, so the OpenAI Python SDK sends its own User-Agent. If a third-party OpenAI-compatible API provider or gateway rejects requests based on that header (which may cause `Failed to generate tl;dr`), set an explicit value such as `zotero-arxiv-daily/1.0`.
+
 >[!NOTE]
 > `${oc.env:XXX,yyy}` means the value of the environment variable `XXX`. If the variable is not set, the default value `yyy` will be used.
 
@@ -111,6 +115,7 @@ zotero:
   user_id: ??? # User ID of your Zotero account.
   api_key: ??? # An Zotero API key with read access.
   include_path: null # A list of glob patterns marking the Zotero collections that should be included. Example: ["2026/survey/**", "2026/reading-group/**"]
+  ignore_path: null # A list of glob patterns marking the Zotero collections that should be excluded. Example: ["archive/**"]
 
 source:
   arxiv:
@@ -132,6 +137,7 @@ llm:
   api:
     key: ??? # API Key of your LLM API. Example: sk-xxx
     base_url: ??? # API URL of your LLM API. Example: https://api.openai.com/v1
+    user_agent: null # Optional HTTP User-Agent override. Example: zotero-arxiv-daily/1.0
   generation_kwargs:
   # Arguments for the LLM API. See [here](https://platform.openai.com/docs/api-reference/chat/create) for more details.
     max_tokens: 16384
@@ -140,7 +146,7 @@ llm:
 
 reranker:
   local:
-    model: jinaai/jina-embeddings-v5-text-nano # The Hugging Face model name of the local embedding model. Example: jinaai/jina-embeddings-v5-text-nano
+    model: jinaai/jina-embeddings-v5-text-nano-retrieval # The Hugging Face model name of the local embedding model.
     encode_kwargs:
     # The kwargs for the encode method of the local embedding model. Details see [here](https://www.sbert.net/docs/package_reference/SentenceTransformer.html#sentence_transformers.SentenceTransformer.encode)
       task: retrieval
@@ -163,20 +169,57 @@ That's all! Now you can test the workflow by manually triggering it:
 ![test](./assets/test.png)
 
 > [!NOTE]
-> The Test-Workflow Action is the debug version of the main workflow (Send-emails-daily), which always retrieve 5 arxiv papers regardless of the date. While the main workflow will be automatically triggered everyday and retrieve new papers released yesterday. There is no new arxiv paper at weekends and holiday, in which case you may see "No new papers found" in the log of main workflow.
+> The Test workflow enables debug mode and retrieves at most 10 papers from each configured source. It still uses the real Zotero, LLM, and SMTP services and sends a real e-mail. The daily workflow reads the latest source feed; when no papers are announced, it logs "No new papers found" and does not send an e-mail unless `executor.send_empty` is enabled.
 
 Then check the log and the receiver email after it finishes.
 
-By default, the main workflow runs on 22:00 UTC everyday. You can change this time by editting the workflow config `.github/workflows/main.yml`.
+By default, the main workflow runs at 22:00 UTC every day. You can change this time by editing `.github/workflows/main.yml`.
 
 ### Local Running
-Supported by [uv](https://github.com/astral-sh/uv), this workflow can easily run on your local device if uv is installed:
+Install [uv](https://github.com/astral-sh/uv), then create a `.env` file in the repository root. The file is ignored by Git and is loaded automatically:
+
+```dotenv
+ZOTERO_ID=12345678
+ZOTERO_KEY=your-zotero-key
+SENDER=sender@example.com
+RECEIVER=receiver@example.com
+SENDER_PASSWORD=your-smtp-password
+OPENAI_API_KEY=sk-xxx
+OPENAI_API_BASE=https://api.openai.com/v1
+```
+
+Keep non-secret settings in `config/custom.yaml`, then run:
+
 ```bash
-# set all the environment variables
-# export ZOTERO_ID=xxxx
-# ...
 cd zotero-arxiv-daily
-uv run main.py
+uv run src/zotero_arxiv_daily/main.py
+# `uv run` creates or updates the project virtual environment automatically. 
+```
+
+For a quicker end-to-end check, enable debug mode, restrict the source categories, and generate an e-mail for only the highest-ranked paper:
+
+```bash
+uv run src/zotero_arxiv_daily/main.py \
+  executor.debug=true \
+  executor.max_paper_num=1 \
+  'source.arxiv.category=[cs.GR]'
+```
+
+Debug mode limits retrieval to at most 10 papers per source. `executor.max_paper_num` is applied after retrieval and reranking, so it limits LLM calls and e-mail entries but does not reduce the number of papers downloaded and ranked.
+
+### Testing
+
+Most tests use local stubs and do not call Zotero, LLM, or SMTP services:
+
+```bash
+# Exclude the slow local embedding-model test (default)
+uv run pytest
+
+# Include all tests, including model download and inference
+uv run pytest -m ""
+
+# Run with coverage
+uv run pytest --cov=src/zotero_arxiv_daily --cov-report=term-missing
 ```
 
 ## 🚀 Sync with the latest version
@@ -186,11 +229,13 @@ This project is in active development. You can subscribe this repo via `Watch` s
 
 
 ## 📖 How it works
-*Zotero-arXiv-Daily* firstly retrieves all the papers in your Zotero library and all the papers released in the previous day, via corresponding API. Then it calculates the embedding of each paper's abstract via an embedding model. The score of a paper is its weighted average similarity over all your Zotero papers (newer paper added to the library has higher weight). The TLDR of each paper is generated by LLM, given the text extracted by pymupdf4llm.
+*Zotero-arXiv-Daily* retrieves papers with abstracts from your Zotero library and uses the configured collection filters to build an interest corpus. It reads current announcements from the arXiv RSS feed or the latest dated results from the bioRxiv/medRxiv API, then calculates abstract embeddings and ranks candidates by their weighted similarity to the Zotero corpus. More recently added Zotero papers receive greater weight.
+
+For arXiv papers, full text is extracted from the TeX source when possible, with arXiv HTML and PDF-to-Markdown extraction as fallbacks. The highest-ranked papers are sent to the configured LLM for TL;DR and affiliation generation before an HTML e-mail is delivered through SMTP. The bioRxiv and medRxiv retrievers currently do not extract full text, so their TL;DRs use abstracts and affiliation extraction is skipped.
 
 ## 📌 Limitations
 - The recommendation algorithm is very simple, it may not accurately reflect your interest. Welcome better ideas for improving the algorithm!
-- High `MAX_PAPER_NUM` can lead the execution time exceed the limitation of Github Action runner (6h per execution for public repo, and 2000 mins per month for private repo). Commonly, the quota given to public repo is definitely enough for individual use. If you have special requirements, you can deploy the workflow in your own server, or use a self-hosted Github Action runner, or pay for the exceeded execution time.
+- A high `executor.max_paper_num` increases LLM usage and may cause a run to exceed GitHub Actions time or usage limits (6h per execution for public repo, and 2000 mins per month for private repo). It does not limit the number of candidates downloaded and reranked. For heavier workloads, consider running locally or using a self-hosted runner.
 
 
 ## 📃 License
