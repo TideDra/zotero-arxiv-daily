@@ -104,7 +104,7 @@ executor:
 ```
 Set `source.arxiv.include_cross_list: true` if you want cross-listed papers included.
 
-By default, `llm.api.user_agent` is `null`, so the OpenAI Python SDK sends its own User-Agent. If a third-party OpenAI-compatible API provider or gateway rejects requests based on that header (which may cause `Failed to generate tl;dr`), set an explicit value such as `zotero-arxiv-daily/1.0`.
+By default, `llm.api.user_agent` is `null`, so the OpenAI Python SDK sends its own User-Agent. If a third-party OpenAI-compatible API provider or gateway rejects requests based on that header (which may cause `Failed to generate tldr of ...`), set an explicit value such as `zotero-arxiv-daily/1.0`.
 
 >[!NOTE]
 > `${oc.env:XXX,yyy}` means the value of the environment variable `XXX`. If the variable is not set, the default value `yyy` will be used.

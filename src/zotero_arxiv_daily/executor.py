@@ -42,7 +42,10 @@ class Executor:
             "api_key": config.llm.api.key,
             "base_url": config.llm.api.base_url,
         }
-        if user_agent := config.llm.api.get("user_agent"):
+        user_agent = config.llm.api.get("user_agent")
+        if user_agent is not None and not isinstance(user_agent, str):
+            raise TypeError("config.llm.api.user_agent must be a string or null.")
+        if user_agent:
             openai_client_kwargs["default_headers"] = {"User-Agent": user_agent}
         self.openai_client = OpenAI(**openai_client_kwargs)
 

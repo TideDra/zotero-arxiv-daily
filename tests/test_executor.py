@@ -13,7 +13,7 @@ from zotero_arxiv_daily.protocol import CorpusPaper
     ("user_agent", "expected_headers"),
     [
         ("zotero-arxiv-daily/1.0", {"User-Agent": "zotero-arxiv-daily/1.0"}),
-        ("custom-client/2.0", {"User-Agent": "custom-client/2.0"}),
+        ("", None),
         (None, None),
     ],
 )
@@ -34,6 +34,15 @@ def test_executor_configures_optional_llm_user_agent(config, monkeypatch, user_a
         assert "default_headers" not in captured_kwargs
     else:
         assert captured_kwargs["default_headers"] == expected_headers
+
+
+@pytest.mark.parametrize("user_agent", [123, True, ["custom-client/2.0"]])
+def test_executor_rejects_non_string_llm_user_agent(config, user_agent):
+    with open_dict(config):
+        config.llm.api.user_agent = user_agent
+
+    with pytest.raises(TypeError, match="config.llm.api.user_agent must be a string or null"):
+        Executor(config)
 
 
 # ---------------------------------------------------------------------------
