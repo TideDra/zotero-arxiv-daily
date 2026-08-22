@@ -3,10 +3,46 @@
 from datetime import datetime
 
 import pytest
-from omegaconf import OmegaConf
+from omegaconf import OmegaConf, open_dict
 
 from zotero_arxiv_daily.executor import Executor, normalize_path_patterns
 from zotero_arxiv_daily.protocol import CorpusPaper
+
+
+@pytest.mark.parametrize(
+    ("user_agent", "expected_headers"),
+    [
+        ("zotero-arxiv-daily/1.0", {"User-Agent": "zotero-arxiv-daily/1.0"}),
+        ("", None),
+        (None, None),
+    ],
+)
+def test_executor_configures_optional_llm_user_agent(config, monkeypatch, user_agent, expected_headers):
+    captured_kwargs = {}
+
+    def make_openai_client(**kwargs):
+        captured_kwargs.update(kwargs)
+        return object()
+
+    monkeypatch.setattr("zotero_arxiv_daily.executor.OpenAI", make_openai_client)
+    with open_dict(config):
+        config.llm.api.user_agent = user_agent
+
+    Executor(config)
+
+    if expected_headers is None:
+        assert "default_headers" not in captured_kwargs
+    else:
+        assert captured_kwargs["default_headers"] == expected_headers
+
+
+@pytest.mark.parametrize("user_agent", [123, True, ["custom-client/2.0"]])
+def test_executor_rejects_non_string_llm_user_agent(config, user_agent):
+    with open_dict(config):
+        config.llm.api.user_agent = user_agent
+
+    with pytest.raises(TypeError, match="config.llm.api.user_agent must be a string or null"):
+        Executor(config)
 
 
 # ---------------------------------------------------------------------------
