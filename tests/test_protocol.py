@@ -5,6 +5,25 @@ import pytest
 from tests.canned_responses import make_sample_paper, make_stub_openai_client
 
 
+@pytest.fixture(autouse=True)
+def local_tokenizer(monkeypatch):
+    """Keep protocol unit tests deterministic and independent of tiktoken downloads."""
+
+    class CharacterEncoding:
+        @staticmethod
+        def encode(text):
+            return list(text)
+
+        @staticmethod
+        def decode(tokens):
+            return "".join(tokens)
+
+    monkeypatch.setattr(
+        "zotero_arxiv_daily.protocol.tiktoken.encoding_for_model",
+        lambda _model: CharacterEncoding(),
+    )
+
+
 @pytest.fixture()
 def llm_params():
     return {
@@ -84,6 +103,22 @@ def test_affiliations_deduplicates(llm_params):
     paper = make_sample_paper()
     result = paper.generate_affiliations(client, llm_params)
     assert len(result) == len(set(result))
+
+
+def test_local_only_paper_never_calls_remote_model(llm_params):
+    class ForbiddenClient:
+        @property
+        def chat(self):
+            raise AssertionError("remote model must not be accessed")
+
+    paper = make_sample_paper(
+        source="ads",
+        external_ids={"ads": "2026ApJ...999....1A"},
+        remote_processing_allowed=False,
+    )
+    assert paper.generate_tldr(ForbiddenClient(), llm_params) is None
+    assert paper.generate_affiliations(ForbiddenClient(), llm_params) is None
+    assert paper.translate_title(ForbiddenClient(), {**llm_params, "translate_title": True}) is None
 
 
 def test_affiliations_malformed_llm_output(llm_params):

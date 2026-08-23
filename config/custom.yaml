@@ -6,6 +6,7 @@ zotero:
 email:
   sender: ${oc.env:SENDER}
   receiver: ${oc.env:RECEIVER}
+  receivers: null
   smtp_server: smtp.qq.com
   smtp_port: 465
   sender_password: ${oc.env:SENDER_PASSWORD}
@@ -16,11 +17,26 @@ llm:
     base_url: ${oc.env:OPENAI_API_BASE}
   generation_kwargs:
     model: gpt-4o-mini
+  language: ${oc.env:LANGUAGE,Chinese}
+  translate_title: ${oc.decode:${oc.env:TRANSLATE_TITLE,false}}
 
 source:
-  arxiv:
-    category: ["cs.AI","cs.CV","cs.LG","cs.CL"]
+  scix:
+    api_token: ${oc.env:SCIX_API_TOKEN,null} # The adapter falls back to ADS_API_TOKEN during migration.
+    query: 'database:astronomy abs:("Milky Way" OR "galactic dynamics" OR "stellar halo" OR "gravitational potential" OR "Large Magellanic Cloud")'
+    state_path: .runtime/state/ads.json
 
 executor:
   debug: ${oc.env:DEBUG,null}
-  source: ['arxiv']
+  source: ['scix']
+  reranker: local
+
+output:
+  atom:
+    enabled: true
+    scix_only_policy: exclude
+    path: public/index.xml
+    title: ${oc.env:RSS_TITLE,Astronomy Paper Recommendations}
+    description: ${oc.env:RSS_DESCRIPTION,Daily astronomy paper recommendations based on your Zotero library}
+    site_url: ${oc.env:RSS_SITE_URL,https://example.github.io/zotero-arxiv-daily/}
+    feed_url: ${oc.env:RSS_FEED_URL,https://example.github.io/zotero-arxiv-daily/index.xml}

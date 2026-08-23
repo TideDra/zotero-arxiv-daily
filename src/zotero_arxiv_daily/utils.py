@@ -9,7 +9,7 @@ from email.mime.text import MIMEText
 from email.utils import parseaddr, formataddr
 from loguru import logger
 import datetime
-from omegaconf import DictConfig
+from omegaconf import DictConfig, ListConfig
 import pymupdf
 import pymupdf.layout
 pymupdf.TOOLS.mupdf_display_errors(False)
@@ -139,9 +139,23 @@ def glob_match(path:str, pattern:str) -> bool:
     re_pattern = glob.translate(pattern,recursive=True)
     return re.match(re_pattern, path) is not None
 
+def normalize_email_receivers(config: DictConfig) -> list[str]:
+    configured = config.email.get("receivers")
+    if configured is not None:
+        if not isinstance(configured, (list, ListConfig)):
+            raise TypeError("config.email.receivers must be a list of email addresses.")
+        receivers = [str(value).strip() for value in configured if str(value).strip()]
+    else:
+        legacy = str(config.email.get("receiver") or "")
+        receivers = [value.strip() for value in legacy.split(",") if value.strip()]
+    if not receivers:
+        raise ValueError("At least one email receiver must be configured.")
+    return receivers
+
+
 def send_email(config:DictConfig, html:str):
     sender = config.email.sender
-    receiver = config.email.receiver
+    receivers = normalize_email_receivers(config)
     password = config.email.sender_password
     smtp_server = config.email.smtp_server
     smtp_port = config.email.smtp_port
@@ -151,21 +165,25 @@ def send_email(config:DictConfig, html:str):
 
     msg = MIMEText(html, 'html', 'utf-8')
     msg['From'] = _format_addr('Github Action <%s>' % sender)
-    msg['To'] = _format_addr('You <%s>' % receiver)
+    msg['To'] = ', '.join(_format_addr('You <%s>' % receiver) for receiver in receivers)
     today = datetime.datetime.now().strftime('%Y/%m/%d')
-    msg['Subject'] = Header(f'Daily arXiv {today}', 'utf-8').encode()
+    msg['Subject'] = Header(f'Daily Paper Recommendations {today}', 'utf-8').encode()
 
+    server = None
     try:
-        server = smtplib.SMTP(smtp_server, smtp_port)
-        server.starttls()
-    except Exception as e:
-        logger.debug(f"Failed to use TLS. {e}\nTry to use SSL.")
         try:
-            server = smtplib.SMTP_SSL(smtp_server, smtp_port)
-        except Exception as e:
-            logger.debug(f"Failed to use SSL. {e}\nTry to use plain text.")
             server = smtplib.SMTP(smtp_server, smtp_port)
+            server.starttls()
+        except Exception as e:
+            logger.debug(f"Failed to use TLS. {e}\nTry to use SSL.")
+            try:
+                server = smtplib.SMTP_SSL(smtp_server, smtp_port)
+            except Exception as ssl_error:
+                logger.debug(f"Failed to use SSL. {ssl_error}\nTry to use plain text.")
+                server = smtplib.SMTP(smtp_server, smtp_port)
 
-    server.login(sender, password)
-    server.sendmail(sender, [receiver], msg.as_string())
-    server.quit()
+        server.login(sender, password)
+        server.sendmail(sender, receivers, msg.as_string())
+    finally:
+        if server is not None:
+            server.quit()

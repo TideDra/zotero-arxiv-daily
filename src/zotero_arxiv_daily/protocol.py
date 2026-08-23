@@ -1,4 +1,4 @@
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from typing import Optional, TypeVar
 from datetime import datetime
 import re
@@ -15,11 +15,38 @@ class Paper:
     authors: list[str]
     abstract: str
     url: str
+    external_ids: dict[str, str] = field(default_factory=dict)
+    entry_at: Optional[datetime] = None
+    published_at: Optional[datetime] = None
+    journal: Optional[str] = None
+    keywords: list[str] = field(default_factory=list)
     pdf_url: Optional[str] = None
     full_text: Optional[str] = None
     tldr: Optional[str] = None
+    translated_title: Optional[str] = None
     affiliations: Optional[list[str]] = None
     score: Optional[float] = None
+    content_source: Optional[str] = None
+    remote_processing_allowed: bool = True
+
+    def __post_init__(self) -> None:
+        if self.content_source is None:
+            self.content_source = self.source
+
+    @property
+    def stable_id(self) -> str:
+        """Return a source-independent identifier suitable for feeds and state."""
+        for namespace in ("ads", "arxiv", "doi"):
+            if identifier := self.external_ids.get(namespace):
+                return f"{namespace}:{identifier}"
+        return self.url
+
+    @property
+    def ranking_text(self) -> str:
+        """Text that the numerical reranker may consume locally."""
+        if self.abstract.strip():
+            return self.abstract
+        return "\n".join(part for part in (self.title, " ".join(self.keywords)) if part)
 
     def _generate_tldr_with_llm(self, openai_client:OpenAI,llm_params:dict) -> str:
         lang = llm_params.get('language', 'English')
@@ -56,7 +83,11 @@ class Paper:
         tldr = response.choices[0].message.content
         return tldr
     
-    def generate_tldr(self, openai_client:OpenAI,llm_params:dict) -> str:
+    def generate_tldr(self, openai_client:OpenAI,llm_params:dict) -> Optional[str]:
+        if not self.remote_processing_allowed:
+            logger.info(f"Skipping remote TLDR generation for local-only record {self.stable_id}")
+            self.tldr = None
+            return None
         try:
             tldr = self._generate_tldr_with_llm(openai_client,llm_params)
             self.tldr = tldr
@@ -95,6 +126,10 @@ class Paper:
             return affiliations
     
     def generate_affiliations(self, openai_client:OpenAI,llm_params:dict) -> Optional[list[str]]:
+        if not self.remote_processing_allowed:
+            logger.info(f"Skipping remote affiliation extraction for local-only record {self.stable_id}")
+            self.affiliations = None
+            return None
         try:
             affiliations = self._generate_affiliations_with_llm(openai_client,llm_params)
             self.affiliations = affiliations
@@ -103,6 +138,38 @@ class Paper:
             logger.warning(f"Failed to generate affiliations of {self.url}: {e}")
             self.affiliations = None
             return None
+
+    def translate_title(self, openai_client: OpenAI, llm_params: dict) -> Optional[str]:
+        """Translate the title explicitly after selection, never during attribute access."""
+        if not self.remote_processing_allowed or not llm_params.get("translate_title", False):
+            self.translated_title = None
+            return None
+        language = llm_params.get("language", "English")
+        if language.lower() == "english":
+            self.translated_title = None
+            return None
+        try:
+            response = openai_client.chat.completions.create(
+                messages=[
+                    {
+                        "role": "system",
+                        "content": (
+                            "Translate academic paper titles accurately. Preserve technical terminology "
+                            "and return only the translated title."
+                        ),
+                    },
+                    {
+                        "role": "user",
+                        "content": f"Translate this title into {language}:\n\n{self.title}",
+                    },
+                ],
+                **llm_params.get("generation_kwargs", {}),
+            )
+            self.translated_title = response.choices[0].message.content.strip()
+        except Exception as exc:
+            logger.warning(f"Failed to translate title of {self.url}: {exc}")
+            self.translated_title = None
+        return self.translated_title
 @dataclass
 class CorpusPaper:
     title: str

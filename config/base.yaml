@@ -5,6 +5,22 @@ zotero:
   ignore_path: null # A list of glob patterns marking the Zotero collections that should be excluded. Example: ["2026/ignore/**","archive/**"]
 
 source:
+  scix:
+    api_token: null # Personal SciX API token. SCIX_API_TOKEN is preferred; ADS_API_TOKEN remains a supported fallback.
+    api_base: https://api.adsabs.harvard.edu/v1 # SciX currently uses the ADS-compatible production API.
+    query: null # Full SciX query without the rolling entdate clause. Example: 'database:astronomy abs:("Milky Way" OR "galactic dynamics")'
+    lookback_days: 7 # Query a rolling window so delayed workflows do not miss newly indexed records.
+    max_results: 200 # Fail and require a narrower query if SciX returns more records.
+    state_path: .runtime/state/ads.json # Kept for delivery-state compatibility during the ADS-to-SciX transition.
+    state_retention_days: 90
+  ads:
+    api_token: null # Legacy alias. Prefer source.scix and SCIX_API_TOKEN for new configurations.
+    api_base: https://api.adsabs.harvard.edu/v1
+    query: null # Legacy ADS-compatible query without the rolling entdate clause.
+    lookback_days: 7 # Query a rolling window so delayed workflows do not miss newly indexed records.
+    max_results: 200 # Fail and require a narrower query if ADS returns more records.
+    state_path: .runtime/state/ads.json
+    state_retention_days: 90
   arxiv:
     category: null # The categories of target arxiv papers. Find the abbr of your research area from [here](https://arxiv.org/category_taxonomy). Example: ["cs.AI","cs.CV","cs.LG","cs.CL"]
     include_cross_list: false # Whether to include arXiv cross-list papers in subscribed categories. Example: true
@@ -18,6 +34,7 @@ source:
 email:
   sender: ??? # The email account of the SMTP server that sends you email. Example: abc@qq.com
   receiver: ??? # The email account that receives the paper list. Example: abc@outlook.com
+  receivers: null # Preferred multi-recipient form. Example: [abc@outlook.com, second@example.com]
   smtp_server: ??? # The SMTP server that sends the email. Ask your email provider (Gmail, QQ, Outlook, ...) for its SMTP server. Example: smtp.qq.com
   smtp_port: ??? # The port of SMTP server. Example: 465
   sender_password: ??? # The password of the sender account. Note that it's not necessarily the password for logging in the e-mail client, but the authentication code for SMTP service. Ask your email provider for this. Example: abcdefghijklmn
@@ -31,6 +48,7 @@ llm:
     max_tokens: 16384
     model: ???
   language: English # Preferred language for the TL;DR. Example: English
+  translate_title: false # Translate selected open-content paper titles into llm.language.
 
 reranker:
   local:
@@ -51,3 +69,13 @@ executor:
   max_paper_num: 100 # The maximum number of the papers presented in the email. Example: 100
   source: ??? # The sources of papers to retrieve. Example: ['arxiv','biorxiv','medrxiv','chemrxiv']
   reranker: local # The reranker to use. Example: 'local' or 'api'
+
+output:
+  atom:
+    enabled: false
+    scix_only_policy: exclude # exclude (safe default) or include after confirming redistribution permission with SciX.
+    path: public/index.xml
+    title: Astronomy Paper Recommendations
+    description: Daily astronomy paper recommendations based on your Zotero library
+    site_url: https://example.github.io/zotero-arxiv-daily/
+    feed_url: https://example.github.io/zotero-arxiv-daily/index.xml

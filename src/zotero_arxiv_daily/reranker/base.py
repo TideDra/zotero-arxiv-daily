@@ -11,7 +11,7 @@ class BaseReranker(ABC):
         corpus = sorted(corpus,key=lambda x: x.added_date,reverse=True)
         time_decay_weight = 1 / (1 + np.log10(np.arange(len(corpus)) + 1))
         time_decay_weight: np.ndarray = time_decay_weight / time_decay_weight.sum()
-        sim = self.get_similarity_score([c.abstract for c in candidates], [c.abstract for c in corpus])
+        sim = self.get_similarity_score([c.ranking_text for c in candidates], [c.abstract for c in corpus])
         assert sim.shape == (len(candidates), len(corpus))
         scores = (sim * time_decay_weight).sum(axis=1) * 10 # [n_candidate]
         for s,c in zip(scores,candidates):

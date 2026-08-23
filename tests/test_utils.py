@@ -186,6 +186,17 @@ def test_send_email_falls_back_to_plain(config, monkeypatch):
     assert len(sent) == 1
 
 
+def test_send_email_supports_receiver_list(config, monkeypatch):
+    from omegaconf import open_dict
+
+    with open_dict(config):
+        config.email.receivers = ["first@example.com", "second@example.com"]
+    sent = []
+    monkeypatch.setattr(smtplib, "SMTP", make_stub_smtp(sent))
+    send_email(config, "<html>multiple</html>")
+    assert sent[0][1] == ["first@example.com", "second@example.com"]
+
+
 # ---------------------------------------------------------------------------
 # extract_tex_code_from_tar
 # ---------------------------------------------------------------------------

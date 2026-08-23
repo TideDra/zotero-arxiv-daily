@@ -1,10 +1,12 @@
 """Tests for ArxivRetriever."""
 
+from datetime import datetime
 import time
 from types import SimpleNamespace
 
 import feedparser
 
+from zotero_arxiv_daily.protocol import Paper
 from zotero_arxiv_daily.retriever.arxiv_retriever import ArxivRetriever, _run_with_hard_timeout
 import zotero_arxiv_daily.retriever.arxiv_retriever as arxiv_retriever
 
@@ -88,3 +90,39 @@ def test_run_with_hard_timeout_returns_none_on_failure(monkeypatch):
     )
     assert result is None
     assert "boom" in warnings[0]
+
+
+def test_enrich_ads_paper_replaces_ads_text_with_arxiv_content(monkeypatch):
+    raw = SimpleNamespace(
+        title="Open version",
+        authors=[SimpleNamespace(name="A. Author")],
+        summary="Open arXiv abstract",
+        pdf_url="https://arxiv.org/pdf/2608.12345",
+        entry_id="https://arxiv.org/abs/2608.12345v2",
+        published=datetime(2026, 8, 20),
+        categories=["astro-ph.GA"],
+        doi=None,
+        get_short_id=lambda: "2608.12345v2",
+    )
+    paper = Paper(
+        source="ads",
+        title="ADS record",
+        authors=["A. Author"],
+        abstract="ADS-only text must be replaced",
+        url="https://ui.adsabs.harvard.edu/abs/example/abstract",
+        external_ids={"ads": "example", "arxiv": "2608.12345"},
+        content_source="ads",
+        remote_processing_allowed=False,
+    )
+    monkeypatch.setattr(arxiv_retriever, "fetch_arxiv_results_by_ids", lambda ids: [raw])
+    monkeypatch.setattr(arxiv_retriever, "extract_text_from_tar", lambda result: "Open arXiv full text")
+    monkeypatch.setattr(arxiv_retriever, "extract_text_from_html", lambda result: None)
+    monkeypatch.setattr(arxiv_retriever, "extract_text_from_pdf", lambda result: None)
+
+    arxiv_retriever.enrich_papers_from_arxiv([paper])
+
+    assert paper.abstract == "Open arXiv abstract"
+    assert paper.title == "Open version"
+    assert paper.full_text == "Open arXiv full text"
+    assert paper.content_source == "arxiv"
+    assert paper.remote_processing_allowed is True

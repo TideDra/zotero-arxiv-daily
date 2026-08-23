@@ -1,34 +1,81 @@
-name: Send emails daily
+name: Recommend astronomy papers and deploy feed
 on:
   workflow_dispatch:
   schedule:
-    - cron: '0 22 * * *'
+    - cron: '0 14 * * *'
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: pages
+  cancel-in-progress: false
 
 jobs:
-  calculate-and-send:
+  calculate-send-and-deploy:
     runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
     steps:
       - name: Checkout
         uses: actions/checkout@v6
-        with:
-          repository: ${{ vars.REPOSITORY }}
-          ref: ${{ vars.REF }}
 
       - name: Setup uv
         uses: astral-sh/setup-uv@v7
 
-      - name: Run script
+      - name: Restore private SciX/ADS-compatible state
+        uses: actions/cache/restore@v4
+        with:
+          path: .runtime/state/ads.json
+          key: ads-state-${{ github.ref_name }}-${{ github.run_id }}
+          restore-keys: |
+            ads-state-${{ github.ref_name }}-
+
+      - name: Process papers and send email
         env:
           ZOTERO_ID: ${{ secrets.ZOTERO_ID }}
           ZOTERO_KEY: ${{ secrets.ZOTERO_KEY }}
+          SCIX_API_TOKEN: ${{ secrets.SCIX_API_TOKEN || secrets.ADS_API_TOKEN }}
+          ADS_API_TOKEN: ${{ secrets.ADS_API_TOKEN || secrets.SCIX_API_TOKEN }}
           SENDER: ${{ secrets.SENDER }}
           RECEIVER: ${{ secrets.RECEIVER }}
           SENDER_PASSWORD: ${{ secrets.SENDER_PASSWORD }}
           OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
           OPENAI_API_BASE: ${{ secrets.OPENAI_API_BASE }}
+          LANGUAGE: ${{ vars.LANGUAGE || 'Chinese' }}
+          TRANSLATE_TITLE: ${{ vars.TRANSLATE_TITLE || 'false' }}
+          RSS_TITLE: ${{ vars.RSS_TITLE || 'Astronomy Paper Recommendations' }}
+          RSS_DESCRIPTION: ${{ vars.RSS_DESCRIPTION || 'Daily astronomy paper recommendations based on your Zotero library' }}
+          RSS_SITE_URL: ${{ vars.RSS_SITE_URL || format('https://{0}.github.io/{1}/', github.repository_owner, github.event.repository.name) }}
+          RSS_FEED_URL: ${{ vars.RSS_FEED_URL || format('https://{0}.github.io/{1}/index.xml', github.repository_owner, github.event.repository.name) }}
           CUSTOM_CONFIG: ${{ vars.CUSTOM_CONFIG }}
         run: |
-          printf "%b\n" "$CUSTOM_CONFIG" > config/custom.yaml
-          echo "Use custom config: "
-          cat config/custom.yaml
+          if [ -n "$CUSTOM_CONFIG" ]; then
+            printf '%s\n' "$CUSTOM_CONFIG" > config/custom.yaml
+          fi
           uv run src/zotero_arxiv_daily/main.py
+
+      - name: Save private SciX/ADS-compatible state
+        if: ${{ success() && hashFiles('.runtime/state/ads.json') != '' }}
+        uses: actions/cache/save@v4
+        with:
+          path: .runtime/state/ads.json
+          key: ads-state-${{ github.ref_name }}-${{ github.run_id }}
+
+      - name: Validate Atom feed
+        run: uv run python -c "import xml.etree.ElementTree as ET; ET.parse('public/index.xml')"
+
+      - name: Configure Pages
+        uses: actions/configure-pages@v5
+
+      - name: Upload Pages artifact
+        uses: actions/upload-pages-artifact@v3
+        with:
+          path: public
+
+      - name: Deploy Pages
+        id: deployment
+        uses: actions/deploy-pages@v4

@@ -5,7 +5,6 @@ from ..protocol import Paper
 from ..utils import extract_markdown_from_pdf, extract_tex_code_from_tar
 from tempfile import TemporaryDirectory
 import feedparser
-from tqdm import tqdm
 import multiprocessing
 import os
 from queue import Empty
@@ -19,6 +18,44 @@ T = TypeVar("T")
 DOWNLOAD_TIMEOUT = (10, 60)
 PDF_EXTRACT_TIMEOUT = 180
 TAR_EXTRACT_TIMEOUT = 180
+
+
+def canonical_arxiv_id(identifier: str) -> str:
+    value = identifier.removeprefix("arXiv:")
+    value = value.split("/abs/")[-1]
+    return value.rsplit("v", 1)[0] if value.rsplit("v", 1)[-1].isdigit() else value
+
+
+def fetch_arxiv_results_by_ids(
+    paper_ids: list[str],
+    client: arxiv.Client | None = None,
+) -> list[ArxivResult]:
+    """Fetch arXiv metadata in bounded batches for retrieval or SciX enrichment."""
+    if not paper_ids:
+        return []
+    client = client or arxiv.Client(num_retries=10, delay_seconds=10)
+    raw_papers: list[ArxivResult] = []
+    max_batch_retries = 5
+    batch_retry_delay = 30
+    for i in range(0, len(paper_ids), 20):
+        search = arxiv.Search(id_list=paper_ids[i:i + 20])
+        for attempt in range(max_batch_retries):
+            try:
+                raw_papers.extend(client.results(search))
+                break
+            except arxiv.HTTPError as exc:
+                if exc.status == 429 and attempt < max_batch_retries - 1:
+                    wait = batch_retry_delay * (attempt + 1)
+                    logger.warning(
+                        f"arXiv API 429 on batch {i // 20}, "
+                        f"retry {attempt + 1}/{max_batch_retries} in {wait}s"
+                    )
+                    sleep(wait)
+                else:
+                    raise
+        if i + 20 < len(paper_ids):
+            sleep(3)
+    return raw_papers
 
 
 def _download_file(url: str, path: str) -> None:
@@ -114,7 +151,6 @@ class ArxivRetriever(BaseRetriever):
             raise ValueError("category must be specified for arxiv.")
 
     def _retrieve_raw_papers(self) -> list[ArxivResult]:
-        client = arxiv.Client(num_retries=10, delay_seconds=10)
         query = '+'.join(self.config.source.arxiv.category)
         include_cross_list = self.config.source.arxiv.get("include_cross_list", False)
         # Get the latest paper from arxiv rss feed
@@ -132,49 +168,11 @@ class ArxivRetriever(BaseRetriever):
             all_paper_ids = all_paper_ids[:10]
 
         # Get full information of each paper from arxiv api
-        bar = tqdm(total=len(all_paper_ids))
-        max_batch_retries = 5
-        batch_retry_delay = 30
-        for i in range(0, len(all_paper_ids), 20):
-            search = arxiv.Search(id_list=all_paper_ids[i:i + 20])
-            for attempt in range(max_batch_retries):
-                try:
-                    batch = list(client.results(search))
-                    bar.update(len(batch))
-                    raw_papers.extend(batch)
-                    break
-                except arxiv.HTTPError as exc:
-                    if exc.status == 429 and attempt < max_batch_retries - 1:
-                        wait = batch_retry_delay * (attempt + 1)
-                        logger.warning(f"arXiv API 429 on batch {i // 20}, retry {attempt + 1}/{max_batch_retries} in {wait}s")
-                        sleep(wait)
-                    else:
-                        raise
-            if i + 20 < len(all_paper_ids):
-                sleep(3)
-        bar.close()
-
+        raw_papers = fetch_arxiv_results_by_ids(all_paper_ids)
         return raw_papers
 
     def convert_to_paper(self, raw_paper: ArxivResult) -> Paper:
-        title = raw_paper.title
-        authors = [a.name for a in raw_paper.authors]
-        abstract = raw_paper.summary
-        pdf_url = raw_paper.pdf_url
-        full_text = extract_text_from_tar(raw_paper)
-        if full_text is None:
-            full_text = extract_text_from_html(raw_paper)
-        if full_text is None:
-            full_text = extract_text_from_pdf(raw_paper)
-        return Paper(
-            source=self.name,
-            title=title,
-            authors=authors,
-            abstract=abstract,
-            url=raw_paper.entry_id,
-            pdf_url=pdf_url,
-            full_text=full_text,
-        )
+        return convert_arxiv_result_to_paper(raw_paper, source=self.name)
 
 
 def extract_text_from_html(paper: ArxivResult) -> str | None:
@@ -211,3 +209,55 @@ def extract_text_from_tar(paper: ArxivResult) -> str | None:
         operation="Tar extraction",
         paper_title=paper.title,
     )
+
+
+def convert_arxiv_result_to_paper(raw_paper: ArxivResult, source: str = "arxiv") -> Paper:
+    full_text = extract_text_from_tar(raw_paper)
+    if full_text is None:
+        full_text = extract_text_from_html(raw_paper)
+    if full_text is None:
+        full_text = extract_text_from_pdf(raw_paper)
+    short_id = raw_paper.get_short_id() if hasattr(raw_paper, "get_short_id") else raw_paper.entry_id
+    arxiv_id = canonical_arxiv_id(short_id)
+    external_ids = {"arxiv": arxiv_id}
+    if getattr(raw_paper, "doi", None):
+        external_ids["doi"] = raw_paper.doi
+    return Paper(
+        source=source,
+        title=raw_paper.title,
+        authors=[author.name for author in raw_paper.authors],
+        abstract=raw_paper.summary,
+        url=raw_paper.entry_id,
+        external_ids=external_ids,
+        published_at=getattr(raw_paper, "published", None),
+        keywords=list(getattr(raw_paper, "categories", None) or []),
+        pdf_url=raw_paper.pdf_url,
+        full_text=full_text,
+        content_source="arxiv",
+        remote_processing_allowed=True,
+    )
+
+
+def enrich_papers_from_arxiv(papers: list[Paper]) -> None:
+    """Replace SciX/ADS text with arXiv-sourced content for selected mapped records."""
+    mapped = [paper for paper in papers if paper.external_ids.get("arxiv")]
+    if not mapped:
+        return
+    results = fetch_arxiv_results_by_ids([paper.external_ids["arxiv"] for paper in mapped])
+    by_id = {canonical_arxiv_id(result.get_short_id()): result for result in results}
+    for paper in mapped:
+        arxiv_id = paper.external_ids["arxiv"]
+        raw_paper = by_id.get(canonical_arxiv_id(arxiv_id))
+        if raw_paper is None:
+            logger.warning(f"Could not enrich SciX record {paper.stable_id} from arXiv {arxiv_id}")
+            continue
+        enriched = convert_arxiv_result_to_paper(raw_paper)
+        paper.title = enriched.title
+        paper.authors = enriched.authors
+        paper.abstract = enriched.abstract
+        paper.full_text = enriched.full_text
+        paper.pdf_url = enriched.pdf_url
+        paper.published_at = paper.published_at or enriched.published_at
+        paper.external_ids.update(enriched.external_ids)
+        paper.content_source = "arxiv"
+        paper.remote_processing_allowed = True
