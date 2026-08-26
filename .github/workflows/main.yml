@@ -14,8 +14,27 @@ jobs:
           repository: ${{ vars.REPOSITORY }}
           ref: ${{ vars.REF }}
 
+      - name: Setup Python
+        uses: actions/setup-python@v6
+        with:
+          python-version-file: .python-version
+
       - name: Setup uv
         uses: astral-sh/setup-uv@v7
+        with:
+          enable-cache: true
+          cache-python: true
+          prune-cache: false
+
+      - name: Cache embedding models
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cache/huggingface
+            ~/.cache/torch/sentence_transformers
+          key: embedding-models-${{ runner.os }}-${{ hashFiles('pyproject.toml', 'uv.lock') }}
+          restore-keys: |
+            embedding-models-${{ runner.os }}-
 
       - name: Run script
         env:
@@ -23,17 +42,22 @@ jobs:
           ZOTERO_KEY: ${{ secrets.ZOTERO_KEY }}
           ZOTERO_IGNORE: ${{ vars.ZOTERO_IGNORE }}
           SEND_EMPTY: ${{ vars.SEND_EMPTY }}
-          ARXIV_QUERY: ${{ secrets.ARXIV_QUERY }}
-          SMTP_SERVER: ${{ secrets.SMTP_SERVER }}
-          SMTP_PORT: ${{ secrets.SMTP_PORT }}
+          ARXIV_QUERY: ${{ vars.ARXIV_QUERY || secrets.ARXIV_QUERY || 'cs.CV+cs.CL' }}
+          ARXIV_BATCH_SIZE: ${{ vars.ARXIV_BATCH_SIZE || secrets.ARXIV_BATCH_SIZE || '5' }}
+          ARXIV_RETRY_ATTEMPTS: ${{ vars.ARXIV_RETRY_ATTEMPTS || secrets.ARXIV_RETRY_ATTEMPTS || '4' }}
+          ARXIV_RETRY_DELAY_SECONDS: ${{ vars.ARXIV_RETRY_DELAY_SECONDS || secrets.ARXIV_RETRY_DELAY_SECONDS || '45' }}
+          SMTP_SERVER: ${{ secrets.SMTP_SERVER || vars.SMTP_SERVER || 'smtp.gmail.com' }}
+          SMTP_PORT: ${{ secrets.SMTP_PORT || vars.SMTP_PORT || '465' }}
           SENDER: ${{ secrets.SENDER }}
           RECEIVER: ${{ secrets.RECEIVER }}
           SENDER_PASSWORD: ${{ secrets.SENDER_PASSWORD }}
-          MAX_PAPER_NUM: ${{ secrets.MAX_PAPER_NUM }}
-          USE_LLM_API: ${{ secrets.USE_LLM_API }}
+          MAX_PAPER_NUM: ${{ vars.MAX_PAPER_NUM || secrets.MAX_PAPER_NUM || '5' }}
+          USE_LLM_API: ${{ vars.USE_LLM_API || secrets.USE_LLM_API }}
           OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
           OPENAI_API_BASE: ${{ secrets.OPENAI_API_BASE }}
-          MODEL_NAME: ${{ secrets.MODEL_NAME }}
+          MODEL_NAME: ${{ vars.MODEL_NAME || secrets.MODEL_NAME }}
           LANGUAGE: ${{ vars.LANGUAGE }}
+          UV_NO_PROGRESS: 1
         run: |
-          uv run main.py
+          uv sync --no-dev
+          uv run --no-sync main.py

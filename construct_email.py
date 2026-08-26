@@ -5,6 +5,7 @@ from email.header import Header
 from email.mime.text import MIMEText
 from email.utils import parseaddr, formataddr
 import smtplib
+import ssl
 import datetime
 import time
 from loguru import logger
@@ -156,13 +157,18 @@ def send_email(sender:str, receiver:str, password:str,smtp_server:str,smtp_port:
     today = datetime.datetime.now().strftime('%Y/%m/%d')
     msg['Subject'] = Header(f'Daily arXiv {today}', 'utf-8').encode()
 
+    smtp_port = int(smtp_port)
+    context = ssl.create_default_context()
     try:
-        server = smtplib.SMTP(smtp_server, smtp_port)
-        server.starttls()
+        if smtp_port == 465:
+            server = smtplib.SMTP_SSL(smtp_server, smtp_port, context=context)
+        else:
+            server = smtplib.SMTP(smtp_server, smtp_port)
+            server.starttls(context=context)
     except Exception as e:
-        logger.warning(f"Failed to use TLS. {e}")
+        logger.warning(f"Failed to use configured SMTP mode. {e}")
         logger.warning(f"Try to use SSL.")
-        server = smtplib.SMTP_SSL(smtp_server, smtp_port)
+        server = smtplib.SMTP_SSL(smtp_server, smtp_port, context=context)
 
     server.login(sender, password)
     server.sendmail(sender, [receiver], msg.as_string())

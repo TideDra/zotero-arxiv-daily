@@ -16,6 +16,7 @@ arxiv.Result._get_pdf_url = _get_pdf_url_patch
 import argparse
 import os
 import sys
+import time
 from dotenv import load_dotenv
 load_dotenv(override=True)
 os.environ["TOKENIZERS_PARALLELISM"] = "false"
@@ -60,19 +61,47 @@ def filter_corpus(corpus:list[dict], pattern:str) -> list[dict]:
     return new_corpus
 
 
-def get_arxiv_paper(query:str, debug:bool=False) -> list[ArxivPaper]:
-    client = arxiv.Client(num_retries=10,delay_seconds=10)
+def _is_transient_arxiv_error(error:Exception) -> bool:
+    message = str(error)
+    return any(f"HTTP {code}" in message for code in [429, 500, 502, 503, 504])
+
+def _fetch_arxiv_batch(client:arxiv.Client, paper_ids:list[str], retry_attempts:int, retry_delay_seconds:int) -> list[ArxivPaper]:
+    search = arxiv.Search(id_list=paper_ids)
+    last_error = None
+    for attempt in range(1, retry_attempts + 1):
+        try:
+            return [ArxivPaper(p) for p in client.results(search)]
+        except Exception as error:
+            last_error = error
+            if not _is_transient_arxiv_error(error) or attempt == retry_attempts:
+                break
+            delay = retry_delay_seconds * (2 ** (attempt - 1))
+            logger.warning(
+                f"arXiv request was throttled or unavailable for {len(paper_ids)} papers "
+                f"(attempt {attempt}/{retry_attempts}). Retrying in {delay}s. Error: {error}"
+            )
+            time.sleep(delay)
+    logger.warning(
+        f"Skipping {len(paper_ids)} arXiv papers after {retry_attempts} failed attempts. "
+        f"Last error: {last_error}"
+    )
+    return []
+
+def get_arxiv_paper(query:str, debug:bool=False, batch_size:int=5, retry_attempts:int=4, retry_delay_seconds:int=45) -> list[ArxivPaper]:
+    client = arxiv.Client(num_retries=2, delay_seconds=retry_delay_seconds)
     feed = feedparser.parse(f"https://rss.arxiv.org/atom/{query}")
-    if 'Feed error for query' in feed.feed.title:
+    feed_title = getattr(feed.feed, "title", "")
+    if 'Feed error for query' in feed_title:
         raise Exception(f"Invalid ARXIV_QUERY: {query}.")
     if not debug:
         papers = []
         all_paper_ids = [i.id.removeprefix("oai:arXiv.org:") for i in feed.entries if i.arxiv_announce_type == 'new']
+        logger.info(f"Found {len(all_paper_ids)} new arXiv paper IDs for query: {query}.")
         bar = tqdm(total=len(all_paper_ids),desc="Retrieving Arxiv papers")
-        for i in range(0,len(all_paper_ids),20):
-            search = arxiv.Search(id_list=all_paper_ids[i:i+20])
-            batch = [ArxivPaper(p) for p in client.results(search)]
-            bar.update(len(batch))
+        for i in range(0,len(all_paper_ids),batch_size):
+            batch_ids = all_paper_ids[i:i+batch_size]
+            batch = _fetch_arxiv_batch(client, batch_ids, retry_attempts, retry_delay_seconds)
+            bar.update(len(batch_ids))
             papers.extend(batch)
         bar.close()
 
@@ -118,8 +147,11 @@ if __name__ == '__main__':
     add_argument('--zotero_key', type=str, help='Zotero API key')
     add_argument('--zotero_ignore',type=str,help='Zotero collection to ignore, using gitignore-style pattern.')
     add_argument('--send_empty', type=bool, help='If get no arxiv paper, send empty email',default=False)
-    add_argument('--max_paper_num', type=int, help='Maximum number of papers to recommend',default=100)
-    add_argument('--arxiv_query', type=str, help='Arxiv search query')
+    add_argument('--max_paper_num', type=int, help='Maximum number of papers to recommend',default=5)
+    add_argument('--arxiv_query', type=str, help='Arxiv RSS query, e.g. cs.CV+cs.CL', default="cs.CV+cs.CL")
+    add_argument('--arxiv_batch_size', type=int, help='Number of arXiv IDs to fetch per API request', default=5)
+    add_argument('--arxiv_retry_attempts', type=int, help='Retry attempts for throttled arXiv API requests', default=4)
+    add_argument('--arxiv_retry_delay_seconds', type=int, help='Initial retry delay for arXiv API requests', default=45)
     add_argument('--smtp_server', type=str, help='SMTP server')
     add_argument('--smtp_port', type=int, help='SMTP port')
     add_argument('--sender', type=str, help='Sender email address')
@@ -176,7 +208,13 @@ if __name__ == '__main__':
         corpus = filter_corpus(corpus, args.zotero_ignore)
         logger.info(f"Remaining {len(corpus)} papers after filtering.")
     logger.info("Retrieving Arxiv papers...")
-    papers = get_arxiv_paper(args.arxiv_query, args.debug)
+    papers = get_arxiv_paper(
+        args.arxiv_query,
+        args.debug,
+        max(1, args.arxiv_batch_size),
+        max(1, args.arxiv_retry_attempts),
+        max(1, args.arxiv_retry_delay_seconds),
+    )
     if len(papers) == 0:
         logger.info("No new papers found. Yesterday maybe a holiday and no one submit their work :). If this is not the case, please check the ARXIV_QUERY.")
         if not args.send_empty:
@@ -197,4 +235,3 @@ if __name__ == '__main__':
     logger.info("Sending email...")
     send_email(args.sender, args.receiver, args.sender_password, args.smtp_server, args.smtp_port, html)
     logger.success("Email sent successfully! If you don't receive the email, please check the configuration and the junk box.")
-
