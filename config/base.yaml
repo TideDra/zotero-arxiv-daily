@@ -24,6 +24,7 @@ llm:
   api:
     key: ??? # API Key of your LLM API. Example: sk-xxx
     base_url: ??? # API URL of your LLM API. Example: https://api.openai.com/v1
+  use_litellm: false # Route through LiteLLM (https://github.com/BerriAI/litellm) to reach 100+ providers from one provider/model string, incl. Bedrock/Vertex/Azure AD (native auth, not just an OpenAI-compatible base_url). Requires the `litellm` extra. When true, `key`/`base_url` may be left blank to use each provider's own env var. Set `model` (in generation_kwargs) to a LiteLLM model string, e.g. `anthropic/claude-opus-4-8` or `bedrock/...`.
   generation_kwargs:
   # Arguments for the LLM API. See [here](https://platform.openai.com/docs/api-reference/chat/create) for more details.
     max_tokens: 16384
@@ -42,6 +43,7 @@ reranker:
     base_url: null # API URL of your embedding model API. Example: https://api.openai.com/v1
     model: null # The model name of the embedding model. Example: text-embedding-3-large
     batch_size: null # The batch size for embedding API requests. Adjust to match your provider's limit. Example: 64
+    use_litellm: false # Route embeddings through LiteLLM to reach 100+ embedding providers (Voyage, Cohere, Bedrock, Vertex, ...). Requires the `litellm` extra. When true, `key`/`base_url` may be left blank to use the provider's own env var, and `model` is a LiteLLM model string.
 
 executor:
   debug: false # Whether to use debug mode. Example: true

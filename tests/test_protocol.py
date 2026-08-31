@@ -122,3 +122,91 @@ def test_affiliations_error_returns_none(llm_params):
     result = paper.generate_affiliations(broken_client, llm_params)
     assert result is None
     assert paper.affiliations is None
+
+
+# ---------------------------------------------------------------------------
+# LiteLLM backend (llm.use_litellm)
+# ---------------------------------------------------------------------------
+
+
+_AFFIL_MARKER = "You are an assistant who perfectly extracts affiliations"
+
+
+def _make_litellm_stub(recorder):
+    """Stand-in for the litellm module: records completion kwargs and returns
+    an OpenAI-shaped response."""
+    from types import SimpleNamespace
+
+    def completion(**kwargs):
+        recorder.append(kwargs)
+        content = (
+            '["TsingHua University","Peking University"]'
+            if _AFFIL_MARKER in str(kwargs.get("messages", []))
+            else "A one-sentence summary."
+        )
+        return SimpleNamespace(choices=[SimpleNamespace(message=SimpleNamespace(content=content))])
+
+    return SimpleNamespace(completion=completion)
+
+
+def _litellm_params(**overrides):
+    params = {
+        "use_litellm": True,
+        "language": "English",
+        "api": {"key": "secret", "base_url": "http://localhost:4000"},
+        "generation_kwargs": {"model": "anthropic/claude-opus-4-8", "max_tokens": 512},
+    }
+    params.update(overrides)
+    return params
+
+
+def test_litellm_tldr_dispatch(monkeypatch):
+    import zotero_arxiv_daily.protocol as protocol
+
+    recorder = []
+    monkeypatch.setattr(protocol, "litellm", _make_litellm_stub(recorder))
+
+    result = make_sample_paper().generate_tldr(None, _litellm_params())
+
+    assert result == "A one-sentence summary."
+    assert len(recorder) == 1
+    call = recorder[0]
+    assert call["model"] == "anthropic/claude-opus-4-8"
+    assert call["drop_params"] is True
+    assert call["api_key"] == "secret"
+    assert call["api_base"] == "http://localhost:4000"
+
+
+def test_litellm_omits_blank_credentials(monkeypatch):
+    import zotero_arxiv_daily.protocol as protocol
+
+    recorder = []
+    monkeypatch.setattr(protocol, "litellm", _make_litellm_stub(recorder))
+
+    make_sample_paper().generate_tldr(None, _litellm_params(api={"key": None, "base_url": ""}))
+
+    call = recorder[0]
+    assert "api_key" not in call  # -> LiteLLM falls back to the provider env var
+    assert "api_base" not in call
+
+
+def test_litellm_affiliations(monkeypatch):
+    import zotero_arxiv_daily.protocol as protocol
+
+    recorder = []
+    monkeypatch.setattr(protocol, "litellm", _make_litellm_stub(recorder))
+
+    result = make_sample_paper().generate_affiliations(None, _litellm_params())
+    assert "TsingHua University" in result
+    assert "Peking University" in result
+
+
+def test_litellm_missing_dependency_falls_back(monkeypatch):
+    import zotero_arxiv_daily.protocol as protocol
+
+    # Simulate litellm not installed while use_litellm is set.
+    monkeypatch.setattr(protocol, "litellm", None)
+    paper = make_sample_paper()
+    result = paper.generate_tldr(None, _litellm_params())
+    # generate_tldr swallows the ImportError and falls back to the abstract.
+    assert result == paper.abstract

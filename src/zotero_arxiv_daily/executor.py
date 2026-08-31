@@ -38,7 +38,13 @@ class Executor:
             source: get_retriever_cls(source)(config) for source in config.executor.source
         }
         self.reranker = get_reranker_cls(config.executor.reranker)(config)
-        self.openai_client = OpenAI(api_key=config.llm.api.key, base_url=config.llm.api.base_url)
+        # When routing through LiteLLM, skip building the OpenAI client so the
+        # pipeline works with providers that use their own env-var auth
+        # (e.g. Bedrock/Vertex) and need no OpenAI key.
+        if config.llm.get("use_litellm"):
+            self.openai_client = None
+        else:
+            self.openai_client = OpenAI(api_key=config.llm.api.key, base_url=config.llm.api.base_url)
     def fetch_zotero_corpus(self) -> list[CorpusPaper]:
         logger.info("Fetching zotero corpus")
         zot = zotero.Zotero(self.config.zotero.user_id, 'user', self.config.zotero.api_key)

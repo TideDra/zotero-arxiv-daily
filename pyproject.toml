@@ -28,6 +28,13 @@ dependencies = [
     "trafilatura>=2.0.0",
 ]
 
+[project.optional-dependencies]
+# Route LLM calls through LiteLLM to reach 100+ providers (Bedrock, Vertex,
+# Azure AD, ...) from one provider/model string. Enable with llm.use_litellm.
+litellm = [
+    "litellm>=1.89.0,<2",
+]
+
 [tool.uv.sources]
 torch = { index = "pytorch" }
 
