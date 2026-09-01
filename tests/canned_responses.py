@@ -39,6 +39,12 @@ def _stub_chat_create(**kwargs):
     return _make_chat_response(_TLDR_RESPONSE)
 
 
+def _stub_response_create(**kwargs):
+    request_str = str(kwargs.get("input", []))
+    content = _AFFILIATION_RESPONSE if _AFFILIATION_MARKER in request_str else _TLDR_RESPONSE
+    return SimpleNamespace(output_text=content)
+
+
 def _stub_embeddings_create(**kwargs):
     inputs = kwargs.get("input", [])
     n = len(inputs) if isinstance(inputs, list) else 1
@@ -52,13 +58,14 @@ def _stub_embeddings_create(**kwargs):
 def make_stub_openai_client():
     """Return a SimpleNamespace that quacks like openai.OpenAI().
 
-    chat.completions.create() and embeddings.create() behave identically
+    chat.completions.create(), responses.create(), and embeddings.create() behave identically
     to the Docker mock_openai server that CI previously relied on.
     """
     return SimpleNamespace(
         chat=SimpleNamespace(
             completions=SimpleNamespace(create=_stub_chat_create),
         ),
+        responses=SimpleNamespace(create=_stub_response_create),
         embeddings=SimpleNamespace(create=_stub_embeddings_create),
     )
 
@@ -229,3 +236,75 @@ SAMPLE_BIORXIV_API_RESPONSE = {
         },
     ],
 }
+
+
+# ---------------------------------------------------------------------------
+# chemRxiv canned API response (Crossref REST API, prefix 10.26434)
+# ---------------------------------------------------------------------------
+
+def _chemrxiv_item(doi, title, created, authors, abstract="<jats:p>An abstract.</jats:p>"):
+    """Build a Crossref ``posted-content`` work record for a chemRxiv preprint.
+
+    ``authors`` is a list of (given, family) tuples. ``created`` is an ISO timestamp.
+    """
+    return {
+        "DOI": doi,
+        "type": "posted-content",
+        "subtype": "preprint",
+        "publisher": "American Chemical Society (ACS)",
+        "prefix": "10.26434",
+        "title": [title],
+        "abstract": abstract,
+        "created": {"date-time": created, "timestamp": 0},
+        "posted": {"date-parts": [[int(p) for p in created[:10].split("-")]]},
+        "author": [
+            {"given": given, "family": family, "sequence": "first" if i == 0 else "additional",
+             "affiliation": [{"name": "Some University"}]}
+            for i, (given, family) in enumerate(authors)
+        ],
+        "link": [{"URL": f"https://chemrxiv.org/doi/pdf/{doi}", "content-type": "unspecified"}],
+        "resource": {"primary": {"URL": f"https://chemrxiv.org/doi/full/{doi}"}},
+        "URL": f"https://doi.org/{doi}",
+    }
+
+
+def _chemrxiv_response(items, total=None):
+    return {
+        "status": "ok",
+        "message-type": "work-list",
+        "message": {
+            "total-results": len(items) if total is None else total,
+            "items": items,
+            "items-per-page": 100,
+            "query": {"start-index": 0},
+        },
+    }
+
+
+SAMPLE_CHEMRXIV_API_RESPONSE = _chemrxiv_response([
+    _chemrxiv_item(
+        "10.26434/chemrxiv.15007618/v1",
+        "A chemrxiv paper",
+        "2026-03-02T10:00:00Z",
+        [("Jane", "Smith"), ("Alan", "Doe")],
+        abstract="<jats:p>We study RuO<jats:sub>2</jats:sub> &amp; friends.</jats:p>",
+    ),
+    _chemrxiv_item(
+        "10.26434/chemrxiv.15007000/v2",
+        "A revised chemrxiv paper",
+        "2026-03-02T09:00:00Z",
+        [("Li", "Wang")],
+    ),
+    _chemrxiv_item(
+        "10.26434/chemrxiv.15007619/v1",
+        "Another chemrxiv paper",
+        "2026-03-02T08:00:00Z",
+        [("Rip", "Old")],
+    ),
+    _chemrxiv_item(
+        "10.26434/chemrxiv.15006000/v1",
+        "Old chemrxiv paper",
+        "2026-02-20T08:00:00Z",
+        [("Rip", "Old")],
+    ),
+])

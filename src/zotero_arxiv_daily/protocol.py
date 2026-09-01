@@ -8,6 +8,34 @@ from loguru import logger
 import json
 RawPaperItem = TypeVar('RawPaperItem')
 
+
+def _request_llm(openai_client: OpenAI, llm_params: dict, messages: list[dict]) -> str:
+    api_mode = llm_params.get("api_mode", "chat_completion")
+    generation_kwargs = dict(llm_params.get("generation_kwargs", {}))
+
+    if api_mode == "chat_completion":
+        response = openai_client.chat.completions.create(
+            messages=messages,
+            **generation_kwargs,
+        )
+        return response.choices[0].message.content
+
+    if api_mode == "response":
+        max_tokens = generation_kwargs.pop("max_tokens", None)
+        if max_tokens is not None and "max_output_tokens" not in generation_kwargs:
+            generation_kwargs["max_output_tokens"] = max_tokens
+        response = openai_client.responses.create(
+            input=messages,
+            **generation_kwargs,
+        )
+        return response.output_text
+
+    raise ValueError(
+        f"Unsupported llm.api_mode: {api_mode}. "
+        "Expected 'chat_completion' or 'response'."
+    )
+
+
 @dataclass
 class Paper:
     source: str
@@ -43,17 +71,17 @@ class Paper:
         prompt_tokens = prompt_tokens[:4000]  # truncate to 4000 tokens
         prompt = enc.decode(prompt_tokens)
         
-        response = openai_client.chat.completions.create(
-            messages=[
+        tldr = _request_llm(
+            openai_client,
+            llm_params,
+            [
                 {
                     "role": "system",
                     "content": f"You are an assistant who perfectly summarizes scientific paper, and gives the core idea of the paper to the user. Your answer should be in {lang}.",
                 },
                 {"role": "user", "content": prompt},
             ],
-            **llm_params.get('generation_kwargs', {})
         )
-        tldr = response.choices[0].message.content
         return tldr
     
     def generate_tldr(self, openai_client:OpenAI,llm_params:dict) -> str:
@@ -75,17 +103,17 @@ class Paper:
             prompt_tokens = enc.encode(prompt)
             prompt_tokens = prompt_tokens[:2000]  # truncate to 2000 tokens
             prompt = enc.decode(prompt_tokens)
-            affiliations = openai_client.chat.completions.create(
-                messages=[
+            affiliations = _request_llm(
+                openai_client,
+                llm_params,
+                [
                     {
                         "role": "system",
                         "content": "You are an assistant who perfectly extracts affiliations of authors from a paper. You should return a python list of affiliations sorted by the author order, like [\"TsingHua University\",\"Peking University\"]. If an affiliation is consisted of multi-level affiliations, like 'Department of Computer Science, TsingHua University', you should return the top-level affiliation 'TsingHua University' only. Do not contain duplicated affiliations. If there is no affiliation found, you should return an empty list [ ]. You should only return the final list of affiliations, and do not return any intermediate results.",
                     },
                     {"role": "user", "content": prompt},
                 ],
-                **llm_params.get('generation_kwargs', {})
             )
-            affiliations = affiliations.choices[0].message.content
 
             affiliations = re.search(r'\[.*?\]', affiliations, flags=re.DOTALL).group(0)
             affiliations = json.loads(affiliations)

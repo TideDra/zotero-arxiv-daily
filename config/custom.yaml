@@ -14,6 +14,7 @@ llm:
   api:
     key: ${oc.env:OPENAI_API_KEY}
     base_url: ${oc.env:OPENAI_API_BASE}
+  api_mode: chat_completion
   generation_kwargs:
     model: gpt-4o-mini
 

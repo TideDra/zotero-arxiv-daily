@@ -39,6 +39,34 @@ def test_biorxiv_empty_response(config, monkeypatch):
     assert papers == []
 
 
+def test_biorxiv_orders_unpadded_dates_chronologically(config, monkeypatch):
+    import requests
+    from types import SimpleNamespace
+
+    response = {
+        "messages": [{"status": "ok"}],
+        "collection": [
+            {"date": "2026-6-30", "category": "neuroscience"},
+            {"date": "2026-07-15", "category": "bioinformatics"},
+        ],
+    }
+
+    def _patched(url, **kw):
+        result = SimpleNamespace(status_code=200, raise_for_status=lambda: None)
+        result.json = lambda: response
+        return result
+
+    monkeypatch.setattr(requests, "get", _patched)
+
+    with open_dict(config.source):
+        config.source.biorxiv = {"category": ["bioinformatics"]}
+    retriever = BiorxivRetriever(config)
+
+    raw_papers = retriever._retrieve_raw_papers()
+
+    assert raw_papers == [response["collection"][1]]
+
+
 def test_biorxiv_convert_to_paper(config):
     with open_dict(config.source):
         config.source.biorxiv = {"category": ["bioinformatics"]}
