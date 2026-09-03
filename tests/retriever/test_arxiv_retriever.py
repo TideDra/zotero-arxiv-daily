@@ -88,3 +88,54 @@ def test_run_with_hard_timeout_returns_none_on_failure(monkeypatch):
     )
     assert result is None
     assert "boom" in warnings[0]
+
+
+def test_arxiv_retriever_falls_back_to_per_paper_on_batch_http_error(config, mock_feedparser, monkeypatch):
+    monkeypatch.setattr("zotero_arxiv_daily.retriever.base.sleep", lambda _: None)
+
+    new_entries = [
+        e for e in mock_feedparser.entries
+        if e.get("arxiv_announce_type", "new") == "new"
+    ]
+
+    fake_results_by_id = {}
+    for entry in new_entries:
+        pid = entry.id.removeprefix("oai:arXiv.org:")
+        fake_results_by_id[pid] = SimpleNamespace(
+            title=entry.title,
+            authors=[SimpleNamespace(name="Test Author")],
+            summary="Test abstract",
+            pdf_url=f"https://arxiv.org/pdf/{pid}",
+            entry_id=f"https://arxiv.org/abs/{pid}",
+            source_url=lambda pid=pid: f"https://arxiv.org/e-print/{pid}",
+        )
+
+    skipped_pid = next(iter(fake_results_by_id))
+    warnings: list[str] = []
+
+    class FakeClient:
+        def __init__(self, **kw):
+            pass
+
+        def results(self, search):
+            ids = list(search.id_list)
+            if len(ids) > 1:
+                raise arxiv_retriever.arxiv.HTTPError("https://export.arxiv.org/api/query", 0, 406)
+            pid = ids[0]
+            if pid == skipped_pid:
+                raise arxiv_retriever.arxiv.HTTPError("https://export.arxiv.org/api/query", 0, 406)
+            return iter([fake_results_by_id[pid]])
+
+    monkeypatch.setattr(arxiv_retriever.arxiv, "Client", FakeClient)
+    monkeypatch.setattr(arxiv_retriever, "logger", SimpleNamespace(warning=warnings.append))
+    monkeypatch.setattr(arxiv_retriever, "extract_text_from_html", lambda paper: None)
+    monkeypatch.setattr(arxiv_retriever, "extract_text_from_pdf", lambda paper: None)
+    monkeypatch.setattr(arxiv_retriever, "extract_text_from_tar", lambda paper: None)
+
+    retriever = ArxivRetriever(config)
+    papers = retriever.retrieve_papers()
+
+    assert len(papers) == len(new_entries) - 1
+    assert skipped_pid not in {p.url.removeprefix("https://arxiv.org/abs/") for p in papers}
+    assert any("Falling back to per-paper requests" in w for w in warnings)
+    assert any(f"Skipping arXiv paper {skipped_pid}" in w for w in warnings)
