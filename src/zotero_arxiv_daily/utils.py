@@ -136,10 +136,10 @@ def extract_markdown_from_pdf(file_path:str) -> str:
     return pymupdf4llm.to_markdown(file_path,use_ocr=False,header=False,footer=False,ignore_code=True)
 
 def glob_match(path:str, pattern:str) -> bool:
-    re_pattern = glob.translate(pattern,recursive=True)
+    re_pattern = glob.translate(pattern, recursive=True)
     return re.match(re_pattern, path) is not None
 
-def send_email(config:DictConfig, html:str):
+def send_email(config: DictConfig, html: str) -> bool:
     sender = config.email.sender
     receiver = config.email.receiver
     password = config.email.sender_password
@@ -164,8 +164,21 @@ def send_email(config:DictConfig, html:str):
             server = smtplib.SMTP_SSL(smtp_server, smtp_port)
         except Exception as e:
             logger.debug(f"Failed to use SSL. {e}\nTry to use plain text.")
-            server = smtplib.SMTP(smtp_server, smtp_port)
+            try:
+                server = smtplib.SMTP(smtp_server, smtp_port)
+            except Exception as e:
+                logger.warning(f"Failed to connect to SMTP server: {e}")
+                return False
 
-    server.login(sender, password)
-    server.sendmail(sender, [receiver], msg.as_string())
-    server.quit()
+    try:
+        server.login(sender, password)
+        server.sendmail(sender, [receiver], msg.as_string())
+        return True
+    except Exception as e:
+        logger.warning(f"Failed to send email. {e}")
+        return False
+    finally:
+        try:
+            server.quit()
+        except Exception as e:
+            logger.debug(f"Failed to close SMTP connection: {e}")
