@@ -88,3 +88,72 @@ def test_run_with_hard_timeout_returns_none_on_failure(monkeypatch):
     )
     assert result is None
     assert "boom" in warnings[0]
+
+
+def test_clean_abstract():
+    raw_with_prefix = (
+        "arXiv:2609.22090v1 Announce Type: new \n"
+        "Abstract: An LLM producing the response pattern associated with a human psychological effect..."
+    )
+    assert arxiv_retriever._clean_abstract(raw_with_prefix) == (
+        "An LLM producing the response pattern associated with a human psychological effect..."
+    )
+
+    raw_plain = "Simple abstract without prefix."
+    assert arxiv_retriever._clean_abstract(raw_plain) == "Simple abstract without prefix."
+
+
+def test_extract_authors():
+    entry_with_author = SimpleNamespace(author="Alice, Bob, Charlie")
+    authors = arxiv_retriever._extract_authors(entry_with_author)
+    assert [a.name for a in authors] == ["Alice", "Bob", "Charlie"]
+
+    entry_with_authors_list = SimpleNamespace(
+        author="",
+        authors=[{"name": "David"}, {"name": "Eva"}]
+    )
+    authors_from_list = arxiv_retriever._extract_authors(entry_with_authors_list)
+    assert [a.name for a in authors_from_list] == ["David", "Eva"]
+
+    entry_empty = SimpleNamespace(author="")
+    authors_empty = arxiv_retriever._extract_authors(entry_empty)
+    assert [a.name for a in authors_empty] == ["Unknown"]
+
+
+def test_entry_to_arxiv_result():
+    entry = SimpleNamespace(
+        id="oai:arXiv.org:2609.22090v1",
+        title="  Recognition, Simulation, \n and Refusal  ",
+        author="Joy Bose",
+        summary="arXiv:2609.22090v1 Announce Type: new \nAbstract: Test summary.",
+        link="https://arxiv.org/abs/2609.22090",
+    )
+    result = arxiv_retriever._entry_to_arxiv_result(entry)
+    assert result.title == "Recognition, Simulation, and Refusal"
+    assert [a.name for a in result.authors] == ["Joy Bose"]
+    assert result.summary == "Test summary."
+    assert result.entry_id == "https://arxiv.org/abs/2609.22090"
+    assert result.pdf_url == "https://arxiv.org/pdf/2609.22090v1"
+    assert result.source_url() == "https://arxiv.org/src/2609.22090v1"
+    assert result.get_short_id() == "2609.22090"
+
+
+def test_retrieve_raw_papers_cross_list(config, mock_feedparser, monkeypatch):
+    monkeypatch.setattr(config.source.arxiv, "include_cross_list", True)
+    retriever = ArxivRetriever(config)
+    raw = retriever._retrieve_raw_papers()
+
+    expected_len = len([
+        e for e in mock_feedparser.entries
+        if e.get("arxiv_announce_type", "new") in {"new", "cross"}
+    ])
+    assert len(raw) == expected_len
+
+
+def test_retrieve_raw_papers_debug_mode(config, mock_feedparser, monkeypatch):
+    monkeypatch.setattr(config.executor, "debug", True)
+    monkeypatch.setattr(config.source.arxiv, "include_cross_list", True)
+    retriever = ArxivRetriever(config)
+    raw = retriever._retrieve_raw_papers()
+    assert len(raw) <= 10
+
