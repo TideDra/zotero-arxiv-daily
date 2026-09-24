@@ -1,6 +1,15 @@
 name: Test
 on:
   workflow_dispatch:
+    inputs:
+      days_back:
+        description: 'Days back to look for papers (default: 2)'
+        required: false
+        default: '2'
+      max_debug_papers:
+        description: 'Max papers to process in test (e.g. 30, empty for all)'
+        required: false
+        default: '30'
 
 jobs:
   calculate-and-send:
@@ -8,13 +17,9 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v6
-      #  with:
-      #    repository: ${{ vars.REPOSITORY }}
-      #    ref: ${{ vars.REF }}
 
       - name: Setup uv
         uses: astral-sh/setup-uv@v7.1.4
-
 
       - name: Run script
         env:
@@ -26,9 +31,22 @@ jobs:
           OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
           OPENAI_API_BASE: ${{ secrets.OPENAI_API_BASE }}
           CUSTOM_CONFIG: ${{ vars.CUSTOM_CONFIG }}
+          DAYS_BACK: ${{ inputs.days_back || '2' }}
+          MAX_DEBUG_PAPERS: ${{ inputs.max_debug_papers || '30' }}
         run: |
           export DEBUG=true
+          export MAX_DEBUG_PAPERS="${MAX_DEBUG_PAPERS}"
           printf "%b\n" "$CUSTOM_CONFIG" > config/custom.yaml
+          python3 -c "
+          import yaml
+          with open('config/custom.yaml', 'r') as f:
+              data = yaml.safe_load(f) or {}
+          if 'source' not in data: data['source'] = {}
+          if 'arxiv' not in data['source']: data['source']['arxiv'] = {}
+          data['source']['arxiv']['days_back'] = int('${DAYS_BACK}')
+          with open('config/custom.yaml', 'w') as f:
+              yaml.dump(data, f)
+          "
           echo "Use custom config: "
           cat config/custom.yaml
           uv run src/zotero_arxiv_daily/main.py

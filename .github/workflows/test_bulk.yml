@@ -1,0 +1,32 @@
+name: Test Bulk Retrieval
+on:
+  workflow_dispatch:
+    inputs:
+      mode:
+        description: 'Test mode: all, rss (broad categories), or oaipmh (multi-day)'
+        required: true
+        default: 'all'
+        type: choice
+        options:
+          - 'all'
+          - 'rss'
+          - 'oaipmh'
+      days_back:
+        description: 'Days back for OAI-PMH retrieval'
+        required: false
+        default: '2'
+
+jobs:
+  test-bulk:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+
+      - name: Setup uv
+        uses: astral-sh/setup-uv@v7.1.4
+
+      - name: Run bulk retrieval test
+        run: |
+          echo "Running bulk retrieval test with mode=${{ inputs.mode || 'all' }} days_back=${{ inputs.days_back || '2' }}"
+          uv run python scripts/benchmark_bulk_retrieval.py --mode "${{ inputs.mode || 'all' }}" --days-back "${{ inputs.days_back || '2' }}" --sample-conversion 2
