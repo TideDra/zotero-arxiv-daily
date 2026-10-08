@@ -227,6 +227,56 @@ def test_extract_tex_with_input_resolution(make_tar):
     assert "This is the introduction." in result["all"]
 
 
+@pytest.mark.parametrize("command", ["input", "include"])
+@pytest.mark.parametrize("target", ["intro", "intro.tex"])
+def test_extract_tex_subfile_commands(make_tar, command, target):
+    path = make_tar({
+        "main.tex": f"\\begin{{document}}\n\\{command}{{{target}}}\n\\end{{document}}",
+        "main.bbl": "",
+        "intro.tex": "This is the introduction.",
+    })
+    result = extract_tex_code_from_tar(path, "test-paper")
+    assert "This is the introduction." in result["all"]
+    assert f"\\{command}{{{target}}}" not in result["all"]
+
+
+def test_extract_tex_mixed_input_and_include(make_tar):
+    path = make_tar({
+        "main.tex": "\\begin{document}\n\\input{intro}\n\\include{method}\n\\end{document}",
+        "main.bbl": "",
+        "intro.tex": "Introduction text.",
+        "method.tex": "Method text.",
+    })
+    result = extract_tex_code_from_tar(path, "test-paper")
+    assert "Introduction text." in result["all"]
+    assert "Method text." in result["all"]
+    assert result["all"].index("Introduction text.") < result["all"].index("Method text.")
+    assert "\\input{" not in result["all"]
+    assert "\\include{" not in result["all"]
+
+
+def test_extract_tex_repeated_include(make_tar):
+    path = make_tar({
+        "main.tex": "\\begin{document}\n\\include{intro}\n\\include{intro}\n\\end{document}",
+        "main.bbl": "",
+        "intro.tex": "Introduction text.",
+    })
+    result = extract_tex_code_from_tar(path, "test-paper")
+    assert result["all"].count("Introduction text.") == 2
+    assert "\\include{" not in result["all"]
+
+
+@pytest.mark.parametrize("command", ["input", "include"])
+def test_extract_tex_missing_subfile(make_tar, command):
+    path = make_tar({
+        "main.tex": f"\\begin{{document}}\nBefore\\{command}{{missing}}After\n\\end{{document}}",
+        "main.bbl": "",
+    })
+    result = extract_tex_code_from_tar(path, "test-paper")
+    assert "BeforeAfter" in result["all"]
+    assert f"\\{command}{{missing}}" not in result["all"]
+
+
 def test_extract_tex_no_tex_files(make_tar):
     path = make_tar({"readme.md": "# Hello"})
     result = extract_tex_code_from_tar(path, "test-paper")

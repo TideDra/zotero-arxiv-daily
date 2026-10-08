@@ -77,6 +77,7 @@ def extract_tex_code_from_tar(file_path:str, paper_id:str) -> dict[str,str]:
             else:
                 file_name = f
             main_source = main_source.replace(f'\\input{{{f}}}', file_contents.get(file_name, ''))
+            main_source = main_source.replace(f'\\include{{{f}}}', file_contents.get(file_name, ''))
         file_contents["all"] = main_source
     else:
         logger.debug(f"Failed to find main tex file of {paper_id}: No tex file containing the document block.")
