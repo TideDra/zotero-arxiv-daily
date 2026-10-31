@@ -11,6 +11,7 @@ from .construct_email import render_email
 from .utils import send_email
 from openai import OpenAI
 from tqdm import tqdm
+from concurrent.futures import ThreadPoolExecutor, as_completed
 
 
 def normalize_path_patterns(patterns: list[str] | ListConfig | None, config_key: str) -> list[str] | None:
@@ -89,6 +90,11 @@ class Executor:
             logger.info(f"Selected {len(corpus)} zotero papers:\n{samples}\n...")
         return corpus
 
+    def _generate_tldr_and_affiliations(self, paper):
+        paper.generate_tldr(self.openai_client, self.config.llm)
+        paper.generate_affiliations(self.openai_client, self.config.llm)
+        return paper
+
     
     def run(self):
         corpus = self.fetch_zotero_corpus()
@@ -112,9 +118,11 @@ class Executor:
             reranked_papers = self.reranker.rerank(all_papers, corpus)
             reranked_papers = reranked_papers[:self.config.executor.max_paper_num]
             logger.info("Generating TLDR and affiliations...")
-            for p in tqdm(reranked_papers):
-                p.generate_tldr(self.openai_client, self.config.llm)
-                p.generate_affiliations(self.openai_client, self.config.llm)
+            max_workers = self.config.executor.get("llm_concurrency", 8)
+            with ThreadPoolExecutor(max_workers=max_workers) as executor:
+                futures = [executor.submit(self._generate_tldr_and_affiliations, p) for p in reranked_papers]
+                for _ in tqdm(as_completed(futures), total=len(futures)):
+                    pass
         elif not self.config.executor.send_empty:
             logger.info("No new papers found. No email will be sent.")
             return
