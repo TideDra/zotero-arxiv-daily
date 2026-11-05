@@ -16,7 +16,7 @@ class ApiReranker(BaseReranker):
                 model=self.config.reranker.api.model
             )
             all_embeddings.extend([r.embedding for r in response.data])
-            sleep(self.config.reranker.api.get('delay', 0))
+            sleep(self.config.reranker.api.delay)
         s1_embeddings = np.array(all_embeddings[:len(s1)])           # [n_s1, d]
         s2_embeddings = np.array(all_embeddings[len(s1):])           # [n_s2, d]
         s1_embeddings_normalized = s1_embeddings / np.linalg.norm(s1_embeddings, axis=1, keepdims=True)

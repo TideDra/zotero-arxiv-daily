@@ -115,9 +115,9 @@ class Executor:
             logger.info("Generating TLDR and affiliations...")
             for p in tqdm(reranked_papers):
                 p.generate_tldr(self.openai_client, self.config.llm)
-                sleep(self.config.reranker.api.get('delay', 0))
+                sleep(self.config.llm.api.delay)
                 p.generate_affiliations(self.openai_client, self.config.llm)
-                sleep(self.config.reranker.api.get('delay', 0))
+                sleep(self.config.llm.api.delay)
         elif not self.config.executor.send_empty:
             logger.info("No new papers found. No email will be sent.")
             return
