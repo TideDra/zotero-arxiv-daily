@@ -17,6 +17,20 @@ def test_render_email_empty_list():
     assert "No Papers Today" in html
 
 
+def test_render_conference_metadata_escapes_html():
+    paper = make_sample_paper(
+        title="A < B", source="ICML", url="https://proceedings.mlr.press/paper?a=1&b=2",
+        authors=["A & B", "C", "D", "E"], score=7.5,
+    )
+
+    html = render_email([], [paper])
+
+    assert "No Papers Today" not in html
+    assert "A &lt; B" in html
+    assert "a=1&amp;b=2" in html
+    assert "ICML · A &amp; B, C, D et al. · Relevance 7.5" in html
+
+
 def test_render_email_author_truncation():
     authors = [f"Author {i}" for i in range(10)]
     paper = make_sample_paper(authors=authors, score=7.0, tldr="ok")

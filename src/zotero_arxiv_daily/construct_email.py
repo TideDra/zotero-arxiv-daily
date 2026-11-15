@@ -1,5 +1,8 @@
-from .protocol import Paper
+from collections.abc import Sequence
+from html import escape
 import math
+
+from .protocol import Paper
 
 
 framework = """
@@ -104,9 +107,9 @@ def get_stars(score:float):
         return '<div class="star-wrapper">'+full_star * full_star_num + half_star * half_star_num + '</div>'
 
 
-def render_email(papers:list[Paper]) -> str:
+def render_email(papers: list[Paper], conference_papers: Sequence[Paper] = ()) -> str:
     parts = []
-    if len(papers) == 0 :
+    if not papers and not conference_papers:
         return framework.replace('__CONTENT__', get_empty_html())
     
     for p in papers:
@@ -127,5 +130,19 @@ def render_email(papers:list[Paper]) -> str:
             affiliations = 'Unknown Affiliation'
         parts.append(get_block_html(p.title, authors, rate, p.tldr, p.pdf_url, affiliations))
 
-    content = '<br>' + '</br><br>'.join(parts) + '</br>'
+    content = '<br>' + '</br><br>'.join(parts) + '</br>' if parts else ''
+    if conference_papers:
+        items = []
+        for paper in conference_papers:
+            title = escape(paper.title)
+            url = escape(paper.url)
+            venue = escape(paper.source)
+            authors = ", ".join(paper.authors[:3])
+            if len(paper.authors) > 3:
+                authors += " et al."
+            credit = f" · {escape(authors)}" if authors else ""
+            score = f" · Relevance {paper.score:.1f}" if paper.score is not None else ""
+            items.append(f'<li><a href="{url}">{title}</a> · {venue}{credit}{score}</li>')
+        content += '<h2>2026 CCF A AI Conferences</h2><ol>' + ''.join(items) + '</ol>'
+
     return framework.replace('__CONTENT__', content)

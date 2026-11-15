@@ -245,6 +245,44 @@ def test_run_no_papers_send_empty_false(config, monkeypatch):
     assert len(sent) == 0, "No email should be sent when no papers and send_empty=false"
 
 
+@pytest.mark.parametrize("has_preprints", [False, True])
+def test_daily_conference_section_is_independent_of_preprints(config, monkeypatch, has_preprints):
+    from types import SimpleNamespace
+
+    from tests.canned_responses import make_sample_corpus, make_sample_paper, make_stub_openai_client
+    from zotero_arxiv_daily import executor as executor_module
+
+    config.executor.ccf_a_2026 = True
+    config.executor.send_empty = False
+    config.executor.max_paper_num = 1
+    daily = [make_sample_paper(title="Today's preprint")] if has_preprints else []
+    conferences = [
+        make_sample_paper(title=f"Conference Paper {i:02d}", source="ICLR", abstract="")
+        for i in range(25)
+    ]
+    monkeypatch.setattr(executor_module, "fetch_conference_papers", lambda: conferences)
+    monkeypatch.setattr(executor_module, "daily_conference_candidates", lambda papers, *_: papers)
+    sent = []
+    monkeypatch.setattr(executor_module, "send_email", lambda _, body: sent.append(body))
+
+    executor = Executor.__new__(Executor)
+    executor.config = config
+    executor.fetch_zotero_corpus = make_sample_corpus
+    executor.filter_corpus = lambda corpus: corpus
+    executor.retrievers = {"arxiv": SimpleNamespace(retrieve_papers=lambda: daily)}
+    executor.reranker = SimpleNamespace(rerank=lambda candidates, _: list(reversed(candidates)))
+    executor.openai_client = make_stub_openai_client()
+
+    executor.run()
+
+    email, = sent
+    assert "2026 CCF A AI Conferences" in email
+    assert email.count("<li>") == 20
+    assert "Conference Paper 24" in email
+    assert "Conference Paper 04" not in email
+    assert ("Today's preprint" in email) == has_preprints
+
+
 def test_run_no_papers_send_empty_true(config, monkeypatch):
     """When no papers are found and send_empty=true, empty email is sent."""
     import smtplib

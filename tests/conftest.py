@@ -43,6 +43,7 @@ def _base_config():
                 "executor.source=[arxiv]",
                 "executor.reranker=api",
                 "executor.debug=false",
+                "executor.ccf_a_2026=false",
                 "executor.send_empty=false",
             ],
         )
