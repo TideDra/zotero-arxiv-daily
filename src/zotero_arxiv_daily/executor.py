@@ -8,6 +8,7 @@ import random
 from datetime import datetime
 from .reranker import get_reranker_cls
 from .construct_email import render_email
+from .feishu import send_feishu_card
 from .utils import send_email
 from openai import OpenAI
 from tqdm import tqdm
@@ -61,7 +62,7 @@ class Executor:
             added_date=datetime.strptime(c['data']['dateAdded'], '%Y-%m-%dT%H:%M:%SZ'),
             paths=c['paths']
         ) for c in corpus]
-    
+
     def filter_corpus(self, corpus:list[CorpusPaper]) -> list[CorpusPaper]:
         if self.include_path_patterns:
             logger.info(f"Selecting zotero papers matching include_path: {self.include_path_patterns}")
@@ -89,7 +90,7 @@ class Executor:
             logger.info(f"Selected {len(corpus)} zotero papers:\n{samples}\n...")
         return corpus
 
-    
+
     def run(self):
         corpus = self.fetch_zotero_corpus()
         corpus = self.filter_corpus(corpus)
@@ -122,3 +123,13 @@ class Executor:
         email_content = render_email(reranked_papers)
         send_email(self.config, email_content)
         logger.info("Email sent successfully")
+
+        # Send Feishu notification
+        if self.config.get("feishu", {}).get("enabled", False):
+            try:
+                logger.info("Sending Feishu notification...")
+                ok = send_feishu_card(reranked_papers, self.config)
+                if ok:
+                    logger.info("Feishu notification sent successfully")
+            except Exception as e:
+                logger.warning(f"Failed to send Feishu notification: {e}")
